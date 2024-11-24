@@ -4,7 +4,7 @@
 File root;
 File f;
 
-int MAX_BUF_SIZE = 50; // at most 64 bytes can fit in serial buffer
+const unsigned long MAX_BUF_SIZE = 50; // at most 64 bytes can fit in serial buffer
 
 void setup() {
   Serial.begin(9600);
@@ -20,12 +20,25 @@ void setup() {
   Serial.println("OK!");
 
   root = SD.open("/");      // open SD card main root
-  f = root.openNextFile();
-  printFile(f);
+  // f = root.openNextFile();
+  // printFile(f);
 
 }
 
 void loop() {
+
+  // choose file
+  root.rewindDirectory();
+  for (int i=0; i<2; i++) {
+    f =  root.openNextFile();
+  }
+  // f =  root.openNextFile();  // open next file
+  // if (! f) {
+  //   // no more files
+  //   root.rewindDirectory();  // go to start of the folder
+  //   f = root.openNextFile();
+  // }
+  printFile(f);
 
   // Send the contents of file f in batches over Serial1
   Serial.println("Sending file");
@@ -36,15 +49,19 @@ void loop() {
   static int strLen;
   bool lastPacket = false;
 
-  int numBytesToWrite = (int) f.size();
-  if (numBytesToWrite != f.available()) {
-    Serial.println("ERROR: Bytes available mismatch");
-    return;
-  }
+  unsigned long numBytesToWrite = f.size();
+  Serial.print("File size: ");
+  Serial.print(numBytesToWrite, DEC);
+  Serial.println();
+  // if (numBytesToWrite != f.available()) {
+  //   Serial.println("ERROR: Bytes available mismatch: ");
+  //   Serial.printf("%d %d", f.size(), f.available());
+  //   return;
+  // }
 
   while (numBytesToWrite > 0) {
     int numBytes = min(numBytesToWrite, MAX_BUF_SIZE);
-    if (numBytesToWrite <= MAX_BUF_SIZE {
+    if (numBytesToWrite <= MAX_BUF_SIZE) {
       lastPacket = true;
     }
 
@@ -63,12 +80,12 @@ void loop() {
     }
     Serial1.write(buf, numBytes);
 
-    numBytesToWrite -= numBytes;
+    numBytesToWrite -= (unsigned long) numBytes;
     delay(10); // idk if a short delay would be helpful?
   }
 
 
-  Serial.println("All bytes sent!")
+  Serial.println("All bytes sent!");
   delay(10000); // delay 10 seconds
 
 }
