@@ -22,8 +22,8 @@ void setup() {
   Serial.println("OK!");
 
   root = SD.open("/");      // open SD card main root
-  f = root.openNextFile();
-  printFile(f);
+  //f = root.openNextFile();
+  //printFile(f);
 
 }
 
@@ -31,7 +31,14 @@ void loop() {
 
   // Send the contents of file f in batches over Serial1
   Serial.println("Sending file");
+  f =  root.openNextFile();  // open next file
+  if (! f) {
+    // no more files
+    root.rewindDirectory();  // go to start of the folder
+    f = root.openNextFile();
+  }
   f.seek(0);
+  printFile(f);
   static byte buf[MAX_BUF_SIZE];
   static char initialPacket[INITIAL_PACKET_LEN];
   static char dataHeaderPacket[DATA_HEADER_LEN];
@@ -40,22 +47,24 @@ void loop() {
   unsigned long numBytesToWrite = f.size();
   int numPackets = (numBytesToWrite + MAX_BUF_SIZE - 1) / MAX_BUF_SIZE;
   strLen = sprintf(initialPacket, "%05d", numPackets);
-  if (strLen != INITIAL_PACKET_LEN) {
-    Serial.println("ERROR: Invalid initial packet length");
-    return;
-  }
-  Serial1.write(initialPacket, strLen);
+  // if (strLen != INITIAL_PACKET_LEN) {
+  //   Serial.println("ERROR: Invalid initial packet length");
+  //   Serial.println(strLen, DEC);
+  //   Serial.println(initialPacket[5] == '\0');
+  //   return;
+  // }
+  Serial1.write(initialPacket, strLen+1);
 
   while (numBytesToWrite > 0) {
     int numBytes = min(numBytesToWrite, MAX_BUF_SIZE);
 
     // first send string message with number of bytes that will be sent
     strLen = sprintf(dataHeaderPacket, "%02d", numBytes);
-    if (strLen != DATA_HEADER_LEN) {
-      Serial.println("ERROR: Invalid data header length");
-      return;
-    }
-    Serial1.write(dataHeaderPacket, strLen);
+    // if (strLen != DATA_HEADER_LEN) {
+    //   Serial.println("ERROR: Invalid data header length");
+    //   return;
+    // }
+    Serial1.write(dataHeaderPacket, strLen+1);
 
     // next, send the bytes
     if (f.read(buf, numBytes) != numBytes) {
