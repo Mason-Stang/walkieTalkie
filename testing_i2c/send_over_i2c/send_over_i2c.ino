@@ -9,7 +9,7 @@ const int MAX_BUF_SIZE = 29;
 
         // data to be sent
 struct I2cTxStruct {
-    int numDataBytes;       // 2 bytes
+    short numDataBytes;       // 2 bytes
     bool isLastPacket;      // 1
     byte dataBuf[MAX_BUF_SIZE];       // 29
                             //------
@@ -97,12 +97,15 @@ void loop() {
 
     // Send
     Wire.beginTransmission(otherAddress);
+    Serial.println("Transmission started");
     int numWritten = Wire.write((byte*) &txData, sizeof(txData));
     if (numWritten != sizeof(txData)) {
       Serial.println("ERROR: Failure with Wire.write");
       return;
     }
+    Serial.println(numWritten, DEC);
     int ret = Wire.endTransmission();    // this is what actually sends the data
+    Serial.println("Transmission ended");
     if (ret != 0) {
       Serial.print("ERROR: error code from Wire.endTransmission: ");
       Serial.println(ret, DEC);

@@ -4,8 +4,8 @@ const int MAX_BUF_SIZE = 29;
 
         // data to be sent
 struct I2cRxStruct {
-    int numDataBytes;       // 2 bytes
-    bool isLastPacket;      // 1
+    short numDataBytes;       // 2 bytes
+    bool hasData;      // 1
     byte dataBuf[MAX_BUF_SIZE];       // 29
                             //------
                             // 32
@@ -16,7 +16,7 @@ I2cRxStruct rxData;
 const byte thisAddress = 9; // these need to be swapped for the other Arduino
 const byte otherAddress = 8;
 
-bool newFile = true;
+volatile bool receivingFile = false;
 volatile bool newRxData = false;
 
 void setup() {
@@ -25,64 +25,65 @@ void setup() {
 
   // set up I2C
   Wire.begin(thisAddress); // join i2c bus
-  Wire.onReceive(receiveEvent); // register event
 
   Serial.println("Starting system");
 }
 
-/**
-Potential problem: The ISR (receiveEvent) will be called with new incoming data before loop can process the previous batch,
-causing the ISR to drop the incoming data.
-
-**/
-
 void loop() {
 
-  // For now, printing each packet.
+  // For now, just printing each packet.
   if (newRxData) {
-    if (newFile) {
+    if (!receivingFile && rxData.hasData) {
+      // TODO: make a new file
       Serial.println("Incoming file...");
-      newFile = false;
+      printPacket(rxData);
+      receivingFile = true;
+    } else if (receivingFile && rxData.hasData) {
+      // TODO: append more data to the file
+      printPacket(rxData);
+    } else if (receivingFile && !rxData.hasData) {
+      // TODO: close the current file
+      Serial.println("Last packet received");
+      Seria.println();
+      receivingFile = false;
     }
+    // else: no file in progress, and sender not sending any data, so do nothing
 
-    Serial.print("Packet with ");
+    newRxData = false;
+  }
+
+  requestData();
+  delay(1000); // continuously poll sender every 1 second
+
+}
+
+void requestData() {
+  int bytesReturned = Wire.requestFrom(otherAddress, sizeof(rxData), false);
+  if (bytesReturned != sizeof(rxData)) {
+    Serial.print("No data received: ");
+    Serial.println(bytesReturned, DEC);
+    return;
+  }
+
+  while (!Wire.available()); // may not be necessary
+  int bytesRead = Wire.readBytes( (byte*) &rxData, sizeof(rxData));
+  if (bytesReturned != sizeof(rxData)) {
+    Serial.print("ERROR: Incorrect number of bytes read: ");
+    Serial.println(bytesRead, DEC);
+    return;
+  }
+  newRxData = true;
+}
+
+void printPacket(I2cRxStruct packet) {
+    Serial.print("Packet with hasData = ");
+    Serial.print(rxData.hasData, DEC);
+    Serial.print(" and ");
     Serial.print(rxData.numDataBytes, DEC);
-    Serial.println(" bytes received (in HEX): ");
+    Serial.println(" data bytes received (bytes in HEX): ");
     for (int i=0; i<rxData.numDataBytes; i++) {
       Serial.print(rxData.dataBuf[i], HEX);
       Serial.print(" ");
     }
     Serial.println();
-
-    if (rxData.isLastPacket) {
-      Serial.println("Last packet received");
-      Serial.println();
-      newFile = true;
-    }
-
-    newRxData = false;
-  }
-
-}
-
-  // this function is called by the Wire library when a message is received
-void receiveEvent(int numBytesReceived) {
-
-  if (numBytesReceived != sizeof(rxData)) {
-    Serial.println("ERROR: Incorrect number of bytes received");
-    return;
-  }
-
-  if (newRxData == false) {
-      // copy the data to rxData
-    Wire.readBytes( (byte*) &rxData, numBytesReceived);
-    newRxData = true;
-  } else {
-      // loop hasn't processed the previous packet
-    Serial.println("ERROR: Data dumped");
-      // dump the data
-    while(Wire.available() > 0) {
-        byte c = Wire.read();
-    }
-  }
 }
