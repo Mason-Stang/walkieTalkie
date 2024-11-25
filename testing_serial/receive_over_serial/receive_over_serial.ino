@@ -32,8 +32,10 @@ void loop() {
     // TODO: reconstruct them into a file
 
     int initialPacketBytesRead = Serial1.readBytes(initialPacket, INITIAL_PACKET_LEN); 
+    
     if (initialPacket[INITIAL_PACKET_LEN - 1] != '\0') {
       Serial.println("ERROR: initial packet had no terminating character");
+      Serial.println(initialPacket[INITIAL_PACKET_LEN - 1]);
       skipFile = true;
       return;
     }
@@ -50,6 +52,7 @@ void loop() {
       if (bytesRead != DATA_HEADER_LEN) {
         Serial.println("ERROR: bytesRead not equal to data header length");
       } else if (dataHeaderPacket[DATA_HEADER_LEN - 1] != '\0') {
+        Serial.println(dataHeaderPacket[DATA_HEADER_LEN - 1]);
         Serial.println("ERROR: data header has no terminating character");
       } else {
         bytesExpected = atoi(dataHeaderPacket);
