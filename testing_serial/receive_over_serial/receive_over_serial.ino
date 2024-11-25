@@ -1,10 +1,11 @@
+#include <cstdlib>
 
-
-int MAX_BUF_SIZE = 50; // at most 64 bytes can fit in serial buffer
+const int MAX_BUF_SIZE = 50; // at most 64 bytes can fit in serial buffer
+const int INITIAL_PACKET_LEN = 6; // 5 digits followed by null terminator
+const int DATA_HEADER_LEN = 3; // 2 digits followed by null terminator
 
 void setup() {
   Serial.begin(9600);
-  while (!Serial);
   Serial1.begin(9600);
   while (!Serial1);
   Serial1.setTimeout(10);
@@ -14,76 +15,68 @@ void setup() {
 
 void loop() {
   static byte buf[MAX_BUF_SIZE];
-  static char str[5];
-  
-  if (Serial1.available() > 0) {
+  static char initialPacket[INITIAL_PACKET_LEN];
+  static char dataHeaderPacket[DATA_HEADER_LEN];
+  static bool skipFile = false;
+
+  int bytesAvailable = Serial1.available();
+  if (bytesAvailable > 0) {
+    if (skipFile) { // If initial packet malformed, skip the file by reading bytes until none are available for an iteration of loop.
+      char clearBytesBuf[64];
+      Serial1.readBytes(clearBytesBuf, bytesAvailable);
+      return;
+    }
+
     Serial.println("Receiving file");
     // process incoming packets
     // TODO: reconstruct them into a file
 
-    bool isDataMsg = false;
-    bool lastPacketArrived = false;
-    int bytesExpected = -1;
-    while (true) {
-      if (!isDataMsg) {
-        Serial.println("Receiving non-data message:");
-        int bytesRead = Serial1.readBytes(str, 5);
-        if (bytesRead != 5) {
-          Serial.println("ERROR: bytesRead not equal to 5");
-          return;
-        }
-        if (str[4] != '\n') {
-          Serial.println("ERROR: no terminating character");
-          return;
-        }
-        // update lastPacketArrived
-        if (str[0] == '1') {
-          lastPacketArrived = true;
-          // just need to read one more data packet
-        }
-        // update bytesExpected
-        if (!(isDigit(str[2]) && isDigit(str[3]))) {
-          Serial.println("ERROR: invalid formatting of bytes expected");
-          return;
-        }
-        bytesExpected = 0;
-        bytesExpected += (str[2] - '0') * 10;
-        bytesExpected += (str[3] - '0');
+    int initialPacketBytesRead = Serial1.readBytes(initialPacket, INITIAL_PACKET_LEN); 
+    if (initialPacket[INITIAL_PACKET_LEN - 1] != '\0') {
+      Serial.println("ERROR: initial packet had no terminating character");
+      skipFile = true;
+      return;
+    }
+    int expectedPackets = atoi(initialPacket);
+    Serial.print("Expected Packets: ");
+    Serial.print(expectedPackets);
+    Serial.println();
 
-        Serial.print("Printing str: ");
-        Serial.println(str);
+    for (int i = 0; i < expectedPackets; i++) {
+      int bytesExpected = -1;
+      Serial.println("Receiving data header:");
 
+      int bytesRead = Serial1.readBytes(dataHeaderPacket, DATA_HEADER_LEN);
+      if (bytesRead != DATA_HEADER_LEN) {
+        Serial.println("ERROR: bytesRead not equal to data header length");
+      } else if (dataHeaderPacket[DATA_HEADER_LEN - 1] != '\0') {
+        Serial.println("ERROR: data header has no terminating character");
       } else {
-        Serial.println("Receiving data message");
-        if (bytesExpected == -1) {
-          Serial.println("ERROR: bytesExpected never updated");
-          return;
-        }
-        int bytesRead = Serial1.readBytes(buf, bytesExpected);
-        if (bytesRead != bytesExpected) {
-          Serial.println("ERROR: bytesRead not equal to bytesExpected");
-          return;
-        }
-        Serial.print("Printing buf (just HEX values): ");
-        for (int i=0; i<bytesRead; i++) {
-          Serial.print(buf[i], HEX);
-          Serial.print(" ");
-        }
-        Serial.println();
-        
-        bytesExpected = -1;
-        if (lastPacketArrived) {
-          // done reading the last data packet
-          break;
-        }
+        bytesExpected = atoi(dataHeaderPacket);
       }
 
-      isDataMsg = !isDataMsg; // expect sender to alternate
-
+      if (bytesExpected == -1) { // Replace buffer with null characters if header was malformed and bytesExpected couldn't be set.
+        for (int i = 0; i < MAX_BUF_SIZE; i++) {
+          buf[i] = '\0';
+        }
+        // Clear MAX_BUF_SIZE bytes.
+        char clearBytesBuf[MAX_BUF_SIZE];
+        Serial1.readBytes(clearBytesBuf, MAX_BUF_SIZE);
+      } else {
+        int bytesRead = Serial1.readBytes(buf, bytesExpected);
+      }
+      Serial.print("Printing buf (just HEX values): ");
+      int bufLen = bytesExpected != -1 ? bytesExpected : MAX_BUF_SIZE;
+      for (int i = 0; i < bufLen; i++) {
+        Serial.print(buf[i], HEX);
+        Serial.print(" ");
+      }
+      Serial.println();
     }
-
     Serial.println("Done receiving file");
     // could play the file here
+  } else {
+    skipFile = false;
   }
 
 }

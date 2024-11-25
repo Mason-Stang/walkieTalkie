@@ -4,7 +4,9 @@
 File root;
 File f;
 
-int MAX_BUF_SIZE = 50; // at most 64 bytes can fit in serial buffer
+const int MAX_BUF_SIZE = 50; // at most 64 bytes can fit in serial buffer
+const int INITIAL_PACKET_LEN = 6; // 5 digits followed by null terminator
+const int DATA_HEADER_LEN = 3; // 2 digits followed by null terminator
 
 void setup() {
   Serial.begin(9600);
@@ -31,30 +33,29 @@ void loop() {
   Serial.println("Sending file");
   f.seek(0);
   static byte buf[MAX_BUF_SIZE];
-  //int bufLen;
-  static char str[5];
+  static char initialPacket[INITIAL_PACKET_LEN];
+  static char dataHeaderPacket[DATA_HEADER_LEN];
   static int strLen;
-  bool lastPacket = false;
 
-  int numBytesToWrite = (int) f.size();
-  if (numBytesToWrite != f.available()) {
-    Serial.println("ERROR: Bytes available mismatch");
+  unsigned long numBytesToWrite = f.size();
+  int numPackets = (numBytesToWrite + MAX_BUF_SIZE - 1) / MAX_BUF_SIZE;
+  strLen = sprintf(initialPacket, "%05d", numPackets);
+  if (strLen != INITIAL_PACKET_LEN) {
+    Serial.println("ERROR: Invalid initial packet length");
     return;
   }
+  Serial1.write(initialPacket, strLen);
 
   while (numBytesToWrite > 0) {
     int numBytes = min(numBytesToWrite, MAX_BUF_SIZE);
-    if (numBytesToWrite <= MAX_BUF_SIZE {
-      lastPacket = true;
-    }
 
     // first send string message with number of bytes that will be sent
-    strLen = sprintf(str, "%d %02d\n", lastPacket ? 1 : 0, numBytes);
-    if (strLen != 5) {
-      Serial.println("ERROR: Invalid strLen value");
+    strLen = sprintf(dataHeaderPacket, "%02d", numBytes);
+    if (strLen != DATA_HEADER_LEN) {
+      Serial.println("ERROR: Invalid data header length");
       return;
     }
-    Serial1.write(str, strLen);
+    Serial1.write(dataHeaderPacket, strLen);
 
     // next, send the bytes
     if (f.read(buf, numBytes) != numBytes) {
@@ -68,7 +69,7 @@ void loop() {
   }
 
 
-  Serial.println("All bytes sent!")
+  Serial.println("All bytes sent!");
   delay(10000); // delay 10 seconds
 
 }
