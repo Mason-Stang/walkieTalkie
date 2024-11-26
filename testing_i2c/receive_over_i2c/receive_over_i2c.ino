@@ -40,6 +40,7 @@ void loop() {
       receivingFile = true;
 
       newRxData = false;
+      delay(50); // (maybe not needed) wait for sender to refill txData
       requestData();
       return;
 
@@ -48,13 +49,14 @@ void loop() {
       printPacket(rxData);
 
       newRxData = false;
+      delay(50); // (maybe not needed) wait for sender to refill txData
       requestData();
       return;
-      
+
     } else if (receivingFile && !rxData.hasData) {
       // TODO: close the current file
       Serial.println("Last packet received");
-      Seria.println();
+      Serial.println();
       receivingFile = false;
     }
     // else: no file in progress, and sender not sending any data, so do nothing
@@ -68,7 +70,8 @@ void loop() {
 }
 
 void requestData() {
-  int bytesReturned = Wire.requestFrom(otherAddress, sizeof(rxData), false);
+  byte stop = false;
+  int bytesReturned = Wire.requestFrom(otherAddress, sizeof(rxData), stop);
   if (bytesReturned != sizeof(rxData)) {
     Serial.print("No data received: ");
     Serial.println(bytesReturned, DEC);
