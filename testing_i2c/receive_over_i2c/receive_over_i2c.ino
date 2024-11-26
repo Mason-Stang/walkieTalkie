@@ -38,9 +38,19 @@ void loop() {
       Serial.println("Incoming file...");
       printPacket(rxData);
       receivingFile = true;
+
+      newRxData = false;
+      requestData();
+      return;
+
     } else if (receivingFile && rxData.hasData) {
       // TODO: append more data to the file
       printPacket(rxData);
+
+      newRxData = false;
+      requestData();
+      return;
+      
     } else if (receivingFile && !rxData.hasData) {
       // TODO: close the current file
       Serial.println("Last packet received");
@@ -67,7 +77,7 @@ void requestData() {
 
   while (!Wire.available()); // may not be necessary
   int bytesRead = Wire.readBytes( (byte*) &rxData, sizeof(rxData));
-  if (bytesReturned != sizeof(rxData)) {
+  if (bytesRead != sizeof(rxData)) {
     Serial.print("ERROR: Incorrect number of bytes read: ");
     Serial.println(bytesRead, DEC);
     return;
