@@ -98,6 +98,7 @@ void sendFile() {
       }
     }
   }
+  while (!rqSent); // wait for last packet to be sent before setting hasData=false and returning to loop()
   txData.hasData = false;
 } 
 

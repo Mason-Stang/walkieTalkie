@@ -58,6 +58,7 @@ void loop() {
       Serial.println("Last packet received");
       Serial.println();
       receivingFile = false;
+      delay(50); // (maybe not needed) wait for sender to refill txData 
     }
     // else: no file in progress, and sender not sending any data, so do nothing
 
