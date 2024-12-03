@@ -13,22 +13,21 @@ struct I2cRxStruct {
 
 I2cRxStruct rxData;
 
-const byte thisAddress = 9; // these need to be swapped for the other Arduino
 const byte otherAddress = 8;
 
 volatile bool receivingFile = false;
 volatile bool newRxData = false;
 
 void setup() {
-  Serial.begin(9600);
+  Serial.begin(115200);
   while (!Serial);
 
   // set up I2C
-  Wire.begin(thisAddress); // join i2c bus
+  Wire.begin(); // join i2c bus
 
   Serial.println("Starting system");
 }
-
+// int count = 0;
 void loop() {
 
   // For now, just printing each packet.
@@ -36,20 +35,25 @@ void loop() {
     if (!receivingFile && rxData.hasData) {
       // TODO: make a new file
       Serial.println("Incoming file...");
-      printPacket(rxData);
+      // printPacket(rxData);
+      // count = 0;
       receivingFile = true;
 
       newRxData = false;
-      delay(50); // (maybe not needed) wait for sender to refill txData
+      delay(10); // (maybe not needed) wait for sender to refill txData
       requestData();
       return;
 
     } else if (receivingFile && rxData.hasData) {
       // TODO: append more data to the file
-      printPacket(rxData);
+      // count += 1;
+      // if (count % 100 == 0) {
+      //   Serial.println(count);
+      // }
+      // printPacket(rxData);
 
       newRxData = false;
-      delay(50); // (maybe not needed) wait for sender to refill txData
+      delay(10); // (maybe not needed) wait for sender to refill txData
       requestData();
       return;
 
@@ -71,8 +75,7 @@ void loop() {
 }
 
 void requestData() {
-  byte stop = false;
-  int bytesReturned = Wire.requestFrom(otherAddress, sizeof(rxData), stop);
+  int bytesReturned = Wire.requestFrom(otherAddress, sizeof(rxData));
   if (bytesReturned != sizeof(rxData)) {
     Serial.print("No data received: ");
     Serial.println(bytesReturned, DEC);
