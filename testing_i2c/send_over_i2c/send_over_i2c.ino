@@ -5,6 +5,8 @@
 File root;
 File f;
 
+// start up sender, then receiver
+
 const int MAX_BUF_SIZE = 29;
 
         // data to be sent
@@ -26,7 +28,7 @@ volatile bool sendingFile = false;
 volatile bool rqSent = true;
 
 void setup() {
-  Serial.begin(9600);
+  Serial.begin(115200);
   while (!Serial);
 
   Serial.print("Initializing SD card...");
@@ -69,7 +71,7 @@ void loop() {
   sendFile();
 
   Serial.println("All bytes sent!");
-  delay(20000); // delay 10 seconds
+  delay(10000); // delay 10 seconds
 
 }
 
@@ -82,6 +84,8 @@ void sendFile() {
 
     if (rqSent) {
       int numBytes = min(numBytesToWrite, MAX_BUF_SIZE);
+      // Serial.print("numBytes = ");
+      // Serial.println(numBytes, DEC);
 
       // fill in txData
       txData.numDataBytes = (short) numBytes;
