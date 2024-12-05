@@ -19,16 +19,22 @@
 //creates global variables
 #define SD_ChipSelectPin 53 //10
 TMRpcm audio;
-int file_number = 0;
-bool recording_now = false;
+volatile int file_number = 0;
+volatile bool recording_now = false;
 const int button_pin = 2;
 const int recording_led_pin = 3;
 const int mic_pin = A0;
-const int sample_rate = 16000;
+const int sample_rate = 4000; //16000; // Affects audio quality and file size. Seems ok at 4000.
+volatile unsigned long time_last_pushed = 0;
 
 
 //code below executed each time the button is pressed down
 void button_pushed() {
+  // trying to fix button bouncing
+  if (millis() - time_last_pushed < 500) {
+    return;
+  }
+
   //combines the neccessary info to find the get a char array of the file name
   char file_name[20] = "";
   itoa(file_number,file_name,10);
@@ -48,11 +54,12 @@ void button_pushed() {
     audio.stopRecording(file_name);
     file_number++;
   }
+  time_last_pushed = millis();
 }
 
 void setup() {
   //initialises the serial connection between the arduino and any connected serial device(e.g. computer, phone, raspberry pi...)
-  Serial.begin(9600);
+  Serial.begin(115200);
   Serial.println("loading...");
 
   //Sets up the pins
