@@ -1,13 +1,12 @@
 #include <Wire.h>
 
 /**
- This node must accept incoming files from recorder, and
- make them available to wifi_receiver.
+ This node forwards packets from recorder to wifi_receiver.
 **/
 
 const int MAX_BUF_SIZE = 28;
 
-        // data to be sent
+        // data to be received/sent
 struct I2cRxStruct {
     short numDataBytes;       // 2 bytes
     bool hasData;      // 1
@@ -17,12 +16,9 @@ struct I2cRxStruct {
                             // 32
 };
 
-I2cRxStruct rxData;
-
+volatile I2cRxStruct rxData;
 const byte otherAddress = 8;
-
-volatile bool receivingFile = false;
-volatile bool newRxData = false;
+bool receivingRequest = false;
 
 void setup() {
   Serial.begin(115200);
@@ -36,59 +32,24 @@ void setup() {
 
 void loop() {
 
-  // For now, just printing each packet.
-  if (newRxData) {
-    if (!receivingFile && rxData.hasData) {
-      if (rxData.wait) {
-        // shouldn't ever reach this case?
-        delay(10);
-        newRxData = false;
-        requestData();
-        return;
-      }
-
-      // TODO: send first packet of a file over wifi
-      Serial.println("Incoming file...");
-      // printPacket(rxData);
-      receivingFile = true;
-
-      newRxData = false;
-      requestData();
-      return;
-
-    } else if (receivingFile && rxData.hasData) {
-      newRxData = false;
-      if (rxData.wait) {
-        delay(10);
-        requestData();
-        return;
-      }
-
-      // TODO: send consecutive data packets over wifi
-      // printPacket(rxData);
-
-      requestData();
-      return;
-
-    } else if (receivingFile && !rxData.hasData) {
-      // TODO: end the current file transmission over wifi
-      Serial.println("Last packet received");
-      Serial.println();
-      receivingFile = false;
-    }
-    // else: no file in progress, and sender not sending any data, so do nothing
-
-    newRxData = false;
+  // TODO: execute the following upon receiving a request over wifi from wifi_receiver
+  if (receivingRequest) {
+    requestData();
+    sendData();
   }
+  
 
-  requestData();
-  delay(500); // continuously poll sender every 0.5 second
+}
 
+void sendData() {
+  // TODO: send rxData to wifi_receiver
 }
 
 void requestData() {
   int bytesReturned = Wire.requestFrom(otherAddress, sizeof(rxData)); //Note: Blocks for around a second when there's no response
   if (bytesReturned != sizeof(rxData)) {
+    rxData.hasData = false;
+    rxData.wait = true;
     Serial.print("No data received: ");
     Serial.println(bytesReturned, DEC);
     return;
@@ -101,7 +62,6 @@ void requestData() {
     Serial.println(bytesRead, DEC);
     return;
   }
-  newRxData = true;
 }
 
 void printPacket(I2cRxStruct packet) {

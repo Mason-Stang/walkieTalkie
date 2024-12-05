@@ -25,7 +25,7 @@ const byte otherAddress = 8;
 
 volatile bool receivingFile = false;
 volatile bool newRxData = false;
-bool file_open = false;
+//bool file_open = false;
 
 TMRpcm audio;
 //File root;
@@ -67,6 +67,12 @@ void loop() {
         return;
       }
 
+      if (audio.isPlaying()) {
+        // Upon receiving a new audio file, stop playing the current one
+        audio.stopPlayback();
+        f.close();
+      }
+
       // Make a new file
       if (SD.exists(file_name)) {
         SD.remove(file_name);
@@ -75,7 +81,7 @@ void loop() {
       if (!f) {
         Serial.println("ERROR: file couldn't be opened");
       }
-      file_open = true;
+      //file_open = true;
       f.write(rxData.dataBuf, rxData.numDataBytes);
 
       Serial.println("Incoming file...");
@@ -112,14 +118,16 @@ void loop() {
 
   }
 
-  if (!audio.isPlaying()) {
-    if (file_open) {
-      f.close();
-      file_open = false;
-    }
-    requestData();
-    delay(500); // continuously poll sender every 0.5 second
-  }
+  // if (!audio.isPlaying()) {
+  //   if (file_open) {
+  //     f.close();
+  //     file_open = false;
+  //   }
+  //   requestData();
+  //   delay(500); // continuously poll sender every 0.5 second
+  // }
+  requestData();
+  delay(500); // continuously poll sender every 0.5 second
 
 }
 
