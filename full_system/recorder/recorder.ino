@@ -111,6 +111,7 @@ void loop() {
 
   if (file_ready) {
     file_ready = false;
+    sendingFile = true;
     root.rewindDirectory();
     f = root.openNextFile();
     f.seek(0);
@@ -126,7 +127,6 @@ void loop() {
 
 // Send the contents of file f in batches over I2C
 void sendFile() {
-  sendingFile = true;
   unsigned long numBytesToWrite = f.size();
   while (sendingFile) {
     // Repeatedly update txData with the next data

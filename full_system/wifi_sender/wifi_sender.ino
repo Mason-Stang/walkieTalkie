@@ -35,6 +35,7 @@ void loop() {
   if (newRxData) {
     if (!receivingFile && rxData.hasData) {
       if (rxData.wait) {
+        // shouldn't ever reach this case?
         delay(10);
         newRxData = false;
         requestData();
@@ -81,7 +82,7 @@ void loop() {
 }
 
 void requestData() {
-  int bytesReturned = Wire.requestFrom(otherAddress, sizeof(rxData));
+  int bytesReturned = Wire.requestFrom(otherAddress, sizeof(rxData)); //Note: Pauses for around a second when there's no response
   if (bytesReturned != sizeof(rxData)) {
     Serial.print("No data received: ");
     Serial.println(bytesReturned, DEC);
