@@ -4,8 +4,16 @@
 #include <TMRpcm.h>
 
 /**
-Notes:
-- Start up receiver before starting up sender
+Key points about the system:
+- Using a design where the receiver polls the sender.
+  - Doing this over I2C using Wire.requestFrom()
+  - May have to make our own protocol over wifi to implement this
+- Uni-directional Architecture:
+  recorder --(i2c)--> wifi_sender --(wifi)--> wifi_receiver --(i2c)--> player
+**/
+
+/**
+  This node records audio, saves to a file, and sends to the next node upon request
 **/
 
 // For sending
@@ -40,7 +48,7 @@ volatile bool recording_now = false;
 const int button_pin = 2;
 const int recording_led_pin = 3;
 const int mic_pin = A0;
-const int sample_rate = 4000; //16000; // Affects audio quality and file size. Seems ok at 4000.
+const int sample_rate = 8000; //16000; // Affects audio quality and file size. Seems ok at 4000 but wiki ways 8000 minimum.
 volatile unsigned long time_last_pushed = 0;
 bool file_ready = false;
 

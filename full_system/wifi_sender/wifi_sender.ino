@@ -1,5 +1,10 @@
 #include <Wire.h>
 
+/**
+ This node must accept incoming files from recorder, and
+ make them available to wifi_receiver.
+**/
+
 const int MAX_BUF_SIZE = 28;
 
         // data to be sent
@@ -42,7 +47,7 @@ void loop() {
         return;
       }
 
-      // TODO: make a new file
+      // TODO: send first packet of a file over wifi
       Serial.println("Incoming file...");
       // printPacket(rxData);
       receivingFile = true;
@@ -59,14 +64,14 @@ void loop() {
         return;
       }
 
-      // TODO: append more data to the file
+      // TODO: send consecutive data packets over wifi
       // printPacket(rxData);
 
       requestData();
       return;
 
     } else if (receivingFile && !rxData.hasData) {
-      // TODO: close the current file
+      // TODO: end the current file transmission over wifi
       Serial.println("Last packet received");
       Serial.println();
       receivingFile = false;
@@ -82,7 +87,7 @@ void loop() {
 }
 
 void requestData() {
-  int bytesReturned = Wire.requestFrom(otherAddress, sizeof(rxData)); //Note: Pauses for around a second when there's no response
+  int bytesReturned = Wire.requestFrom(otherAddress, sizeof(rxData)); //Note: Blocks for around a second when there's no response
   if (bytesReturned != sizeof(rxData)) {
     Serial.print("No data received: ");
     Serial.println(bytesReturned, DEC);
