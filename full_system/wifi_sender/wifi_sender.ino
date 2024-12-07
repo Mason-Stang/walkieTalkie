@@ -19,6 +19,13 @@ struct I2cRxStruct {
 volatile I2cRxStruct rxData;
 const byte otherAddress = 8;
 bool receivingRequest = false;
+char ssid[] = "Brown-Guest" ;
+int status = WL_IDLE_STATUS;
+IPAddress server(64,131,82,241); //put in the server arduino ip address
+unsigned long lastConnectionTime = 0;            // last time you connected to the server, in milliseconds
+const unsigned long postingInterval = 10L * 1000L; // delay between updates, in milliseconds
+
+
 
 void setup() {
   Serial.begin(115200);
@@ -26,26 +33,83 @@ void setup() {
 
   // set up I2C
   Wire.begin(); // join i2c bus
-
+  setupWifi();
   Serial.println("Starting system");
 }
 
 void loop() {
 
+  //constantly listening for the one byte..
+  
   // TODO: execute the following upon receiving a request over wifi from wifi_receiver
   if (receivingRequest) {
     requestData();
     sendData();
+  } else {
+    waitingForRequest();
   }
-  
 
+}
+
+void waitingForRequest(){
+  if (client.connected()){
+    while (client.available()) {
+      /* actual data reception */
+      //waiting for the one byte
+      byte buf[1];
+      client.read(buf, 1);
+      String ack = String((char *)buf);
+      if (ack == 'a'){
+        //unsure if this was the intention of the boolean but once we recieve the one byte we say that we are 
+        //receiving a request from the player.
+        receivingRequest = true;
+      }
+    }
+  }
+}
+
+void setupWifi(){
+  if (WiFi.status() == WL_NO_MODULE) {
+    Serial.println("Communication with WiFi module failed!");
+    // don't continue
+    while (true);
+  }
+
+  String fv = WiFi.firmwareVersion();
+  if (fv < WIFI_FIRMWARE_LATEST_VERSION) {
+    Serial.println("Please upgrade the firmware");
+  }
+
+  // attempt to connect to WiFi network:
+  while (status != WL_CONNECTED) {
+    Serial.print("Attempting to connect to SSID: ");
+    Serial.println(ssid);
+    // Connect to WPA/WPA2 network. Change this line if using open or WEP network:
+    status = WiFi.begin(ssid);
+
+    // wait 10 seconds for connection:
+    delay(10000);
+  }
+  // you're connected now, so print out the status:
+  printWifiStatus();
+  client.connect(server, 80);
 }
 
 void sendData() {
   // TODO: send rxData to wifi_receiver
+  //client.stop();
+
+  // if there's a successful connection:
+  if (client.connected()) {
+    //Serial.println("connecting...");
+    //this assumes there is data available to send? or ig we are sending an empty buffer which idk if anything would happen
+    client.write(rxData.dataBuf, rxData.numDataBytes); //i think?
+  }
 }
 
 void requestData() {
+  //QUESTION: what is the purpose of sending a packet with no data to the receiver/player? 
+
   int bytesReturned = Wire.requestFrom(otherAddress, sizeof(rxData)); //Note: Blocks for around a second when there's no response
   if (bytesReturned != sizeof(rxData)) {
     rxData.hasData = false;
@@ -61,7 +125,9 @@ void requestData() {
     Serial.print("ERROR: Incorrect number of bytes read: ");
     Serial.println(bytesRead, DEC);
     return;
-  }
+  } 
+  //added this here to say that we have fulffilled the previous request and are ready for the next one
+  recievingRequest = false;
 }
 
 void printPacket(I2cRxStruct packet) {
