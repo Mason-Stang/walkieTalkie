@@ -22,6 +22,7 @@ struct I2cRxStruct {
 I2cRxStruct rxData;
 
 const byte otherAddress = 8;
+const byte thisAddress = 9;
 
 volatile bool receivingFile = false;
 volatile bool newRxData = false;
@@ -37,7 +38,7 @@ void setup() {
   while (!Serial);
 
   // set up I2C
-  Wire.begin(); // join i2c bus
+  Wire.begin(thisAddress); // join i2c bus
 
   Serial.print("Initializing SD card...");
   if (!SD.begin(53)) {
