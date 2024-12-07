@@ -70,11 +70,12 @@ void loop() {
       if (audio.isPlaying()) {
         // Upon receiving a new audio file, stop playing the current one
         audio.stopPlayback();
-        f.close();
+        Serial.println("Playback stopped.");
       }
 
       // Make a new file
       if (SD.exists(file_name)) {
+        f.close();
         SD.remove(file_name);
       }
       f = SD.open(file_name, FILE_WRITE);
@@ -132,7 +133,10 @@ void loop() {
 }
 
 void requestData() {
-  int bytesReturned = Wire.requestFrom(otherAddress, sizeof(rxData)); //Note: Pauses for around a second when there's no response
+  int bytesReturned = Wire.requestFrom(otherAddress, sizeof(rxData)); 
+  //Note: Pauses for around a second when there's no response.
+  // But sometimes it blocks??
+
   if (bytesReturned != sizeof(rxData)) {
     Serial.print("No data received: ");
     Serial.println(bytesReturned, DEC);
