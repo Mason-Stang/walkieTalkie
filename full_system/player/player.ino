@@ -70,11 +70,11 @@ void loop() {
       if (audio.isPlaying()) {
         // Upon receiving a new audio file, stop playing the current one
         audio.stopPlayback();
-        f.close();
       }
 
       // Make a new file
       if (SD.exists(file_name)) {
+        f.close();
         SD.remove(file_name);
       }
       f = SD.open(file_name, FILE_WRITE);
