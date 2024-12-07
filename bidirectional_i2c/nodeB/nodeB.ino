@@ -3,6 +3,15 @@
 #include <Wire.h>
 #include <TMRpcm.h>
 
+/**
+Key points about the system:
+- Using a design where each node polls the other for data.
+  - Doing this over I2C using Wire.requestFrom()
+- Bi-directional Architecture:
+  nodeA <---(i2c)---> nodeB
+- nodeA and nodeB code are exactly the same, except that their addresses are swapped.
+**/
+
 // Data
 const int MAX_BUF_SIZE = 28;
 
@@ -271,15 +280,4 @@ void requestEvent() {
 //       Serial.print(" ");
 //     }
 //     Serial.println();
-// }
-
-// void printFile() {
-//   if (! f) {
-//     Serial.println("ERROR printing file");
-//     return;
-//   }
-//   Serial.print(f.name());
-//   Serial.print("\t\t");
-//   Serial.print("File size: ");
-//   Serial.println(f.size(), DEC);
 // }
