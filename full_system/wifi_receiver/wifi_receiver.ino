@@ -30,15 +30,17 @@ volatile I2cRxStruct rxData;
         // I2C control stuff
 const byte thisAddress = 8; // these need to be swapped for the other Arduino
 const byte otherAddress = 9;
-
+bool flag = false;
+bool flag1 = false;
 void setup() {
-  Serial.begin(9600);
+  Serial.begin(115200);
   while (!Serial);
-
+  setupWifi();
   // set up I2C
   Wire.begin(thisAddress); // join i2c bus
   Wire.onRequest(requestEvent); // register function to be called when a request arrives
-  setupWifi();
+  rxData.hasData = false;
+  rxData.wait = true;
   Serial.println("OK!");
 }
 
@@ -74,7 +76,28 @@ void setupWifi(){
   }
 }
 void loop() {
+  if (flag1){
+    requestData();
+    Wire.write((byte*) &rxData, sizeof(rxData));
+    flag1 = false;
+    rxData.hasData = false;
+    rxData.wait = true;
+  }
+}
 
+void printPacket() {
+  Serial.print("Packet with hasData = ");
+  Serial.print(rxData.hasData, DEC);
+  Serial.print(" Packet with wait = ");
+  Serial.print(rxData.wait, DEC);
+  Serial.print(" and ");
+  Serial.print(rxData.numDataBytes, DEC);
+  Serial.println(" data bytes received (bytes in HEX): ");
+  for (int i=0; i<rxData.numDataBytes; i++) {
+    Serial.print(rxData.dataBuf[i], HEX);
+    Serial.print(" ");
+  }
+  Serial.println();
 }
 
 void requestData() {
@@ -83,15 +106,14 @@ void requestData() {
   // If no response, set rxData.wait=true and rxData.hasData=false
 
   //sends a request to wifi_sender
+  byte ask[1] = {'a'};
   
-  byte buf[1] = {'a'};
-  if(client.connected()){
-    client.write(buf, 1);
-  }
+  client.write(ask, 1);
+  Serial.println("sent ask");
   //waiting for the response
   unsigned long currTime = millis();
   while(!client.available()){
-    // if no response after 0.5 seconds, set rxData.wait=true and rxData.hasData=false, and return;
+    //if no response after 0.5 seconds, set rxData.wait=true and rxData.hasData=false, and return;
     if (millis() - currTime > 500) {
       rxData.wait = true;
       rxData.hasData = false;
@@ -100,33 +122,22 @@ void requestData() {
     currTime = millis();
   }
   // we know there is a client and data to read after we are done waiting. insert watchdog somewhere here?
-  if (client.connected()) {
-    byte buf[sizeof(rxData)];
-    client.read(buf, sizeof(rxData)); //currently on reading the data buffer.
-    memcpy((byte *) &rxData, buf, sizeof(rxData));
+  Serial.println("recieved data");
   
-  }
-  
+  byte buf[sizeof(rxData)];
+  client.read(buf, sizeof(rxData)); //currently on reading the data buffer.
+  memcpy((byte *) &rxData, buf, sizeof(rxData));
+  printPacket();
 }
 
 
 void requestEvent() {
-  requestData();
-  Wire.write((byte*) &rxData, sizeof(rxData));
+  flag1=true;
+  //requestData();
+  //Wire.write((byte*) &rxData, sizeof(rxData));
 }
 
-void printPacket(I2cRxStruct packet) {
-    Serial.print("Packet with hasData = ");
-    Serial.print(rxData.hasData, DEC);
-    Serial.print(" and ");
-    Serial.print(rxData.numDataBytes, DEC);
-    Serial.println(" data bytes received (bytes in HEX): ");
-    for (int i=0; i<rxData.numDataBytes; i++) {
-      Serial.print(rxData.dataBuf[i], HEX);
-      Serial.print(" ");
-    }
-    Serial.println();
-}
+
 
 /* -------------------------------------------------------------------------- */
 void printWifiStatus() {
