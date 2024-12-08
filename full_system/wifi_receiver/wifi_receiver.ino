@@ -9,7 +9,7 @@ const int MAX_BUF_SIZE = 28;
 char ssid[] = "Brown-Guest" ;
 int status = WL_IDLE_STATUS;
 WiFiClient client;
-IPAddress server(64,131,82,241); //put in the server arduino ip address
+IPAddress server(172, 18, 129, 55); //put in the server arduino ip address
 unsigned long lastConnectionTime = 0;            // last time you connected to the server, in milliseconds
 const unsigned long postingInterval = 10L * 1000L; // delay between updates, in milliseconds
 
@@ -32,10 +32,10 @@ const byte thisAddress = 8; // these need to be swapped for the other Arduino
 const byte otherAddress = 9;
 
 void setup() {
-  Serial.begin(115200);
+  Serial.begin(9600);
   while (!Serial);
 
-        // set up I2C
+  // set up I2C
   Wire.begin(thisAddress); // join i2c bus
   Wire.onRequest(requestEvent); // register function to be called when a request arrives
   setupWifi();
@@ -70,6 +70,7 @@ void setupWifi(){
   bool connected = false;
   while(!connected){
     connected = client.connect(server, 80);
+    Serial.println(connected);
   }
 }
 void loop() {
@@ -88,22 +89,24 @@ void requestData() {
     client.write(buf, 1);
   }
   //waiting for the response
+  unsigned long currTime = millis();
   while(!client.available()){
-
+    // if no response after 0.5 seconds, set rxData.wait=true and rxData.hasData=false, and return;
+    if (millis() - currTime > 500) {
+      rxData.wait = true;
+      rxData.hasData = false;
+      return;
+    }
+    currTime = millis();
   }
   // we know there is a client and data to read after we are done waiting. insert watchdog somewhere here?
   if (client.connected()) {
-    byte buf[MAX_BUF_SIZE];
-    int size = client.read(buf, MAX_BUF_SIZE); //currently on reading the data buffer.
-   
-    memcpy((byte *)rxData.dataBuf, buf, size);
-    rxData.hasData = true;
-    rxData.wait = false;
-    rxData.numDataBytes = size;
+    byte buf[sizeof(rxData)];
+    client.read(buf, sizeof(rxData)); //currently on reading the data buffer.
+    memcpy((byte *) &rxData, buf, sizeof(rxData));
+  
   }
-  //not sure how the hasdata and wait parts of the struct integrate here because we can busy-wait/block until there is data available 
-  //for the recorder which is what this code does. feel free to change.
-
+  
 }
 
 

@@ -42,6 +42,7 @@ void loop() {
   if (receivingRequest) {
     requestData();
     sendData();
+    receivingRequest = false;
   } else {
     waitingForRequest();
   }
@@ -54,11 +55,14 @@ void waitingForRequest(){
     //waiting for the one byte
     byte buf[1];
     client.read(buf, 1);
-    String ack = String((char *)buf);
+    //double check what this is sending
+    String ack = String((char *)buf[0]);
+    Serial.print(ack);
     if (ack == "a"){
       //unsure if this was the intention of the boolean but once we recieve the one byte we say that we are 
       //receiving a request from the player.
       receivingRequest = true;
+    
     }
     
   }
@@ -96,7 +100,7 @@ void sendData() {
   // TODO: send rxData to wifi_receiver
   //client.stop();
   //idt this is atomic, might need to disable interrupts.
-  server.write((const byte*)rxData.dataBuf, rxData.numDataBytes);
+  server.write((byte *)&rxData, sizeof(rxData));
   
 }
 
@@ -120,7 +124,7 @@ void requestData() {
     return;
   } 
   //added this here to say that we have fulffilled the previous request and are ready for the next one
-  receivingRequest = false;
+  
 }
 
 void printPacket(I2cRxStruct packet) {
