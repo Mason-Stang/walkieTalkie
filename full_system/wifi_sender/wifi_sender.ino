@@ -25,7 +25,7 @@ int status = WL_IDLE_STATUS;
 WiFiServer server(80);
 
 void setup() {
-  Serial.begin(115200);
+  Serial.begin(9600);
   while (!Serial);
 
   // set up I2C
@@ -54,16 +54,16 @@ void waitingForRequest(){
   if (client.connected()){
     //waiting for the one byte
     byte buf[1];
-    client.read(buf, 1);
+    Serial.print(client.read(buf, 1));
     //double check what this is sending
     String ack = String((char *)buf[0]);
     Serial.print(ack);
-    if (ack == "a"){
+    // if (ack == "a"){
       //unsure if this was the intention of the boolean but once we recieve the one byte we say that we are 
       //receiving a request from the player.
-      receivingRequest = true;
+    receivingRequest = true;
     
-    }
+    // }
     
   }
 }
@@ -96,10 +96,27 @@ void setupWifi(){
   
 }
 
+void printPacket() {
+    Serial.print("Packet with hasData = ");
+    Serial.print(rxData.hasData, DEC);
+    Serial.print(" and ");
+    Serial.print(rxData.numDataBytes, DEC);
+    Serial.println(" data bytes received (bytes in HEX): ");
+    for (int i=0; i<rxData.numDataBytes; i++) {
+      Serial.print(rxData.dataBuf[i], HEX);
+      Serial.print(" ");
+    }
+    Serial.println();
+}
+
+
 void sendData() {
   // TODO: send rxData to wifi_receiver
   //client.stop();
   //idt this is atomic, might need to disable interrupts.
+  printPacket();
+  Serial.println("data being sent");
+  
   server.write((byte *)&rxData, sizeof(rxData));
   
 }
