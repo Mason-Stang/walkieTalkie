@@ -1,4 +1,5 @@
 #include <Wire.h>
+#include "WiFiS3.h"
 
 /**
  This node forwards packets from recorder to wifi_receiver.
@@ -21,11 +22,7 @@ const byte otherAddress = 8;
 bool receivingRequest = false;
 char ssid[] = "Brown-Guest" ;
 int status = WL_IDLE_STATUS;
-IPAddress server(64,131,82,241); //put in the server arduino ip address
-unsigned long lastConnectionTime = 0;            // last time you connected to the server, in milliseconds
-const unsigned long postingInterval = 10L * 1000L; // delay between updates, in milliseconds
-
-
+WiFiServer server(80);
 
 void setup() {
   Serial.begin(115200);
@@ -52,19 +49,18 @@ void loop() {
 }
 
 void waitingForRequest(){
+  WiFiClient client = server.available(); // will only run if there is data available
   if (client.connected()){
-    while (client.available()) {
-      /* actual data reception */
-      //waiting for the one byte
-      byte buf[1];
-      client.read(buf, 1);
-      String ack = String((char *)buf);
-      if (ack == 'a'){
-        //unsure if this was the intention of the boolean but once we recieve the one byte we say that we are 
-        //receiving a request from the player.
-        receivingRequest = true;
-      }
+    //waiting for the one byte
+    byte buf[1];
+    client.read(buf, 1);
+    String ack = String((char *)buf);
+    if (ack == "a"){
+      //unsure if this was the intention of the boolean but once we recieve the one byte we say that we are 
+      //receiving a request from the player.
+      receivingRequest = true;
     }
+    
   }
 }
 
@@ -90,21 +86,18 @@ void setupWifi(){
     // wait 10 seconds for connection:
     delay(10000);
   }
+  server.begin();
   // you're connected now, so print out the status:
   printWifiStatus();
-  client.connect(server, 80);
+  
 }
 
 void sendData() {
   // TODO: send rxData to wifi_receiver
   //client.stop();
-
-  // if there's a successful connection:
-  if (client.connected()) {
-    //Serial.println("connecting...");
-    //this assumes there is data available to send? or ig we are sending an empty buffer which idk if anything would happen
-    client.write(rxData.dataBuf, rxData.numDataBytes); //i think?
-  }
+  //idt this is atomic, might need to disable interrupts.
+  server.write((const byte*)rxData.dataBuf, rxData.numDataBytes);
+  
 }
 
 void requestData() {
@@ -127,7 +120,7 @@ void requestData() {
     return;
   } 
   //added this here to say that we have fulffilled the previous request and are ready for the next one
-  recievingRequest = false;
+  receivingRequest = false;
 }
 
 void printPacket(I2cRxStruct packet) {
@@ -142,3 +135,24 @@ void printPacket(I2cRxStruct packet) {
     }
     Serial.println();
 }
+
+
+/* -------------------------------------------------------------------------- */
+void printWifiStatus() {
+/* -------------------------------------------------------------------------- */  
+  // print the SSID of the network you're attached to:
+  Serial.print("SSID: ");
+  Serial.println(WiFi.SSID());
+
+  // print your board's IP address:
+  IPAddress ip = WiFi.localIP();
+  Serial.print("IP Address: ");
+  Serial.println(ip);
+
+  // print the received signal strength:
+  long rssi = WiFi.RSSI();
+  Serial.print("signal strength (RSSI):");
+  Serial.print(rssi);
+  Serial.println(" dBm");
+}
+

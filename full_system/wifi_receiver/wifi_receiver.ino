@@ -7,8 +7,13 @@
 
 const int MAX_BUF_SIZE = 28;
 char ssid[] = "Brown-Guest" ;
-WiFiServer server(80);
 int status = WL_IDLE_STATUS;
+WiFiClient client;
+IPAddress server(64,131,82,241); //put in the server arduino ip address
+unsigned long lastConnectionTime = 0;            // last time you connected to the server, in milliseconds
+const unsigned long postingInterval = 10L * 1000L; // delay between updates, in milliseconds
+
+
 
         // data to be received/sent
 struct I2cRxStruct {
@@ -59,9 +64,13 @@ void setupWifi(){
     // wait 10 seconds for connection:
     delay(10000);
   }
-  server.begin();
+
   // you're connected now, so print out the status:
   printWifiStatus();
+  bool connected = false;
+  while(!connected){
+    connected = client.connect(server, 80);
+  }
 }
 void loop() {
 
@@ -73,23 +82,21 @@ void requestData() {
   // If no response, set rxData.wait=true and rxData.hasData=false
 
   //sends a request to wifi_sender
-  WiFiClient client = server.available();
+  
   byte buf[1] = {'a'};
-  if(client){
-    server.write(buf, 1);
+  if(client.connected()){
+    client.write(buf, 1);
   }
   //waiting for the response
-  while(!server.available()){
+  while(!client.available()){
 
   }
   // we know there is a client and data to read after we are done waiting. insert watchdog somewhere here?
   if (client.connected()) {
     byte buf[MAX_BUF_SIZE];
     int size = client.read(buf, MAX_BUF_SIZE); //currently on reading the data buffer.
-    byte result[size];
-    memcpy(result, buf, size);
-
-    rxData.dataBuf = result;
+   
+    memcpy((byte *)rxData.dataBuf, buf, size);
     rxData.hasData = true;
     rxData.wait = false;
     rxData.numDataBytes = size;
@@ -117,3 +124,23 @@ void printPacket(I2cRxStruct packet) {
     }
     Serial.println();
 }
+
+/* -------------------------------------------------------------------------- */
+void printWifiStatus() {
+/* -------------------------------------------------------------------------- */  
+  // print the SSID of the network you're attached to:
+  Serial.print("SSID: ");
+  Serial.println(WiFi.SSID());
+
+  // print your board's IP address:
+  IPAddress ip = WiFi.localIP();
+  Serial.print("IP Address: ");
+  Serial.println(ip);
+
+  // print the received signal strength:
+  long rssi = WiFi.RSSI();
+  Serial.print("signal strength (RSSI):");
+  Serial.print(rssi);
+  Serial.println(" dBm");
+}
+
