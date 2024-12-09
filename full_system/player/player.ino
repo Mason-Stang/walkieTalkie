@@ -38,7 +38,8 @@ void setup() {
   while (!Serial);
 
   // set up I2C
-  Wire.begin(thisAddress); // join i2c bus
+  //Wire.begin(thisAddress); // join i2c bus
+  Wire.begin(); // join i2c bus
 
   Serial.print("Initializing SD card...");
   if (!SD.begin(53)) {
@@ -59,10 +60,12 @@ void setup() {
 void loop() {
 
   if (newRxData) {
+    //Serial.println("newRxData");
     newRxData = false;
     if (!receivingFile && rxData.hasData) {
       if (rxData.wait) {
         // shouldn't ever reach this case?
+        Serial.println("Waiting for data");
         delay(10);
         requestData();
         return;
@@ -95,10 +98,12 @@ void loop() {
 
     } else if (receivingFile && rxData.hasData) {
       if (rxData.wait) {
+        Serial.println("Receiving hasData and wait are true");
         delay(10);
         requestData();
         return;
       }
+      Serial.println("Data packets being received");
 
       // Append more data to the file
       // printPacket(rxData);
@@ -115,6 +120,8 @@ void loop() {
       f.flush();
       audio.play(file_name);
 
+    } else {
+      Serial.println("Receiving empty packet");
     }
     // else: no file in progress, and sender not sending any data, so do nothing
 
@@ -129,14 +136,17 @@ void loop() {
   //   delay(500); // continuously poll sender every 0.5 second
   // }
   requestData();
+  
   delay(500); // continuously poll sender every 0.5 second
 
 }
 
 void requestData() {
-  int bytesReturned = Wire.requestFrom(otherAddress, sizeof(rxData)); 
+  //Serial.println("Data requested");
+  int bytesReturned = Wire.requestFrom(otherAddress, sizeof(rxData));
   //Note: Pauses for around a second when there's no response.
   // But sometimes it blocks??
+  
 
   if (bytesReturned != sizeof(rxData)) {
     Serial.print("No data received: ");
@@ -144,7 +154,10 @@ void requestData() {
     return;
   }
 
+  //Serial.println("Before check");
   while (!Wire.available()); // may not be necessary
+  //Serial.println("After check");
+
   int bytesRead = Wire.readBytes( (byte*) &rxData, sizeof(rxData));
   if (bytesRead != sizeof(rxData)) {
     Serial.print("ERROR: Incorrect number of bytes read: ");
@@ -152,6 +165,7 @@ void requestData() {
     return;
   }
   newRxData = true;
+  //Serial.println("Bytes returned");
 }
 
 void printPacket(I2cRxStruct packet) {
