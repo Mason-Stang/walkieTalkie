@@ -5,6 +5,9 @@
   This node forwards packets from wifi_sender to player.
 **/
 
+// when waiting on response, set hasData=false, wait=true
+// Keep a variable for when packet is sent. requestData() sets it to true, requestEvent sets it to false if it was true
+
 const int MAX_BUF_SIZE = 28;
 char ssid[] = "Brown-Guest" ;
 int status = WL_IDLE_STATUS;
@@ -30,17 +33,22 @@ volatile I2cRxStruct rxData;
         // I2C control stuff
 const byte thisAddress = 8; // these need to be swapped for the other Arduino
 const byte otherAddress = 9;
-bool flag = false;
-bool flag1 = false;
+
+volatile bool eventFlag = false;
+// volatile bool errorFlag1 = false;
+// volatile bool errorFlag2 = false;
+volatile bool dataReady = false;
+
 void setup() {
   Serial.begin(115200);
   while (!Serial);
-  setupWifi();
+  Serial.print("Starting...");
+  //setupWifi();    //commented out for testing
+
   // set up I2C
   Wire.begin(thisAddress); // join i2c bus
+  // Wire.onReceive(receiveEvent); // register function to be called when a request arrives
   Wire.onRequest(requestEvent); // register function to be called when a request arrives
-  rxData.hasData = false;
-  rxData.wait = true;
   Serial.println("OK!");
 }
 
@@ -76,13 +84,24 @@ void setupWifi(){
   }
 }
 void loop() {
-  if (flag1){
+  if (eventFlag && !dataReady) {
+    eventFlag = false;
     requestData();
-    Wire.write((byte*) &rxData, sizeof(rxData));
-    flag1 = false;
-    rxData.hasData = false;
-    rxData.wait = true;
+
+    // delay(100);
+    // Wire.beginTransmission(otherAddress);
+    // Wire.write((byte*) &rxData, sizeof(rxData));
+    // Wire.endTransmission();    // this is what actually sends the data
+    // Serial.println("Bytes written");
   }
+  // if (errorFlag1) {
+  //   errorFlag1 = false;
+  //   Serial.println("Error: numBytesRead != 1");
+  // }
+  // if (errorFlag2) {
+  //   errorFlag2 = false;
+  //   Serial.println("Error: byte read != A");
+  // }
 }
 
 void printPacket() {
@@ -115,27 +134,45 @@ void requestData() {
   while(!client.available()){
     //if no response after 0.5 seconds, set rxData.wait=true and rxData.hasData=false, and return;
     if (millis() - currTime > 500) {
-      rxData.wait = true;
-      rxData.hasData = false;
       return;
     }
-    currTime = millis();
   }
   // we know there is a client and data to read after we are done waiting. insert watchdog somewhere here?
-  Serial.println("recieved data");
+  Serial.println("received data");
   
   byte buf[sizeof(rxData)];
   client.read(buf, sizeof(rxData)); //currently on reading the data buffer.
+  //noInterrupts();
   memcpy((byte *) &rxData, buf, sizeof(rxData));
+  dataReady = true;
+  //interrupts();
   printPacket();
 }
 
-
 void requestEvent() {
-  flag1=true;
-  //requestData();
-  //Wire.write((byte*) &rxData, sizeof(rxData));
+  eventFlag = true;
+  if (dataReady) {
+    dataReady = false;
+  } else {
+    rxData.hasData = false;
+    rxData.wait = true;
+  }
+  Wire.write((byte*) &rxData, sizeof(rxData));
 }
+
+
+// void receiveEvent(int numBytesReceived) {
+//   if (numBytesReceived != 1) {
+//     errorFlag1 = true;
+//     return;
+//   }
+//   char c = Wire.read();
+//   if (c != 'A') {
+//     errorFlag2 = true;
+//     return;
+//   }
+//   eventFlag = true;
+// }
 
 
 

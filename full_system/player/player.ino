@@ -26,10 +26,8 @@ const byte thisAddress = 9;
 
 volatile bool receivingFile = false;
 volatile bool newRxData = false;
-//bool file_open = false;
 
 TMRpcm audio;
-//File root;
 File f;
 char file_name[20] = "";
 
@@ -54,6 +52,8 @@ void setup() {
   audio.setVolume(6);    //   0 to 7. Set volume level
   audio.quality(1);      //  Set 1 for 2x oversampling Set 0 for normal
 
+  //Wire.onReceive(receiveEvent);
+
   Serial.println("OK!");
 }
 
@@ -61,16 +61,17 @@ void loop() {
 
   if (newRxData) {
     //Serial.println("newRxData");
-    newRxData = false;
-    if (!receivingFile && rxData.hasData) {
-      if (rxData.wait) {
-        // shouldn't ever reach this case?
-        Serial.println("Waiting for data");
-        delay(10);
-        requestData();
-        return;
-      }
+    printPacket();
 
+    newRxData = false;
+    
+    if (rxData.wait) {
+      Serial.println("Waiting for data");
+      delay(50);
+      requestData();
+      return;
+
+    } else if (!receivingFile && rxData.hasData) {
       if (audio.isPlaying()) {
         // Upon receiving a new audio file, stop playing the current one
         audio.stopPlayback();
@@ -97,12 +98,6 @@ void loop() {
       return;
 
     } else if (receivingFile && rxData.hasData) {
-      if (rxData.wait) {
-        Serial.println("Receiving hasData and wait are true");
-        delay(10);
-        requestData();
-        return;
-      }
       Serial.println("Data packets being received");
 
       // Append more data to the file
@@ -127,17 +122,8 @@ void loop() {
 
   }
 
-  // if (!audio.isPlaying()) {
-  //   if (file_open) {
-  //     f.close();
-  //     file_open = false;
-  //   }
-  //   requestData();
-  //   delay(500); // continuously poll sender every 0.5 second
-  // }
-  requestData();
-  
   delay(500); // continuously poll sender every 0.5 second
+  requestData();
 
 }
 
@@ -166,17 +152,45 @@ void requestData() {
   }
   newRxData = true;
   //Serial.println("Bytes returned");
+
+  // ------------------
+
+  // char x = 'A';
+  // newRxData = false; // unnecessary, should already be false
+  // Wire.beginTransmission(otherAddress);
+  // Wire.write(x);
+  // Wire.endTransmission();    // this is what actually sends the data
+
+  // unsigned long currTime = millis();
+  // while (!newRxData) {
+  //   // block for up to 1 second waiting for the response
+  //   // after that, expects that it won't come (undefined behavior if it does)
+  //   if (millis() - currTime > 1000) {
+  //     // assume the response is never coming
+  //     Serial.println("No response from wifi_receiver");
+  //     return;
+  //   }
+  // }
+  // Serial.println("Data received");
+
 }
 
-void printPacket(I2cRxStruct packet) {
-    Serial.print("Packet with hasData = ");
-    Serial.print(rxData.hasData, DEC);
-    Serial.print(" and ");
-    Serial.print(rxData.numDataBytes, DEC);
-    Serial.println(" data bytes received (bytes in HEX): ");
-    for (int i=0; i<rxData.numDataBytes; i++) {
-      Serial.print(rxData.dataBuf[i], HEX);
-      Serial.print(" ");
-    }
-    Serial.println();
+// void receiveEvent() {
+//   Wire.readBytes( (byte*) &rxData, sizeof(rxData));
+//   newRxData = true;
+// }
+
+void printPacket() {
+  Serial.print("Packet with hasData = ");
+  Serial.print(rxData.hasData, DEC);
+  Serial.print(" Packet with wait = ");
+  Serial.print(rxData.wait, DEC);
+  Serial.print(" and ");
+  Serial.print(rxData.numDataBytes, DEC);
+  Serial.println(" data bytes received (bytes in HEX): ");
+  for (int i=0; i<rxData.numDataBytes; i++) {
+    Serial.print(rxData.dataBuf[i], HEX);
+    Serial.print(" ");
+  }
+  Serial.println();
 }
