@@ -9,10 +9,11 @@
 // Keep a variable for when packet is sent. requestData() sets it to true, requestEvent sets it to false if it was true
 
 const int MAX_BUF_SIZE = 28;
-char ssid[] = "Brown-Guest" ;
+char ssid[] = "yas" ;
+char pass[] = "yasmine2097";
+IPAddress server(172, 20, 10, 12);
 int status = WL_IDLE_STATUS;
 WiFiClient client;
-IPAddress server(172, 18, 129, 55); //put in the server arduino ip address
 unsigned long lastConnectionTime = 0;            // last time you connected to the server, in milliseconds
 const unsigned long postingInterval = 10L * 1000L; // delay between updates, in milliseconds
 
@@ -43,7 +44,7 @@ void setup() {
   Serial.begin(115200);
   while (!Serial);
   Serial.print("Starting...");
-  //setupWifi();    //commented out for testing
+  setupWifi();    //commented out for testing
 
   // set up I2C
   Wire.begin(thisAddress); // join i2c bus
@@ -69,7 +70,7 @@ void setupWifi(){
     Serial.print("Attempting to connect to SSID: ");
     Serial.println(ssid);
     // Connect to WPA/WPA2 network. Change this line if using open or WEP network:
-    status = WiFi.begin(ssid);
+    status = WiFi.begin(ssid,pass);
 
     // wait 10 seconds for connection:
     delay(10000);
@@ -133,12 +134,12 @@ void requestData() {
   unsigned long currTime = millis();
   while(!client.available()){
     //if no response after 0.5 seconds, set rxData.wait=true and rxData.hasData=false, and return;
-    if (millis() - currTime > 500) {
+    if (millis() - currTime > 1000) {
       return;
     }
   }
   // we know there is a client and data to read after we are done waiting. insert watchdog somewhere here?
-  Serial.println("received data");
+  //Serial.println("received data");
   
   byte buf[sizeof(rxData)];
   client.read(buf, sizeof(rxData)); //currently on reading the data buffer.

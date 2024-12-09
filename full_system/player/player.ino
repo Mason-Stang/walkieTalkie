@@ -61,13 +61,13 @@ void loop() {
 
   if (newRxData) {
     //Serial.println("newRxData");
-    printPacket();
+    //printPacket();
 
     newRxData = false;
-    
+
     if (rxData.wait) {
-      Serial.println("Waiting for data");
-      delay(50);
+      //Serial.println("Waiting for data");
+      delay(100);
       requestData();
       return;
 
@@ -98,7 +98,7 @@ void loop() {
       return;
 
     } else if (receivingFile && rxData.hasData) {
-      Serial.println("Data packets being received");
+      //Serial.println("Data packets being received");
 
       // Append more data to the file
       // printPacket(rxData);
@@ -110,6 +110,7 @@ void loop() {
     } else if (receivingFile && !rxData.hasData) {
       // TODO: close the current file
       Serial.println("Last packet received. Playing file...");
+      //while (true);
       Serial.println();
       receivingFile = false;
       f.flush();
