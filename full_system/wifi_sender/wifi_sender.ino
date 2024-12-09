@@ -20,7 +20,8 @@ struct I2cRxStruct {
 volatile I2cRxStruct rxData;
 const byte otherAddress = 8;
 bool receivingRequest = false;
-char ssid[] = "Brown-Guest" ;
+char ssid[] = "yas" ;
+char pass[] = "yasmine2097";
 int status = WL_IDLE_STATUS;
 WiFiServer server(80);
 
@@ -85,7 +86,7 @@ void setupWifi(){
     Serial.print("Attempting to connect to SSID: ");
     Serial.println(ssid);
     // Connect to WPA/WPA2 network. Change this line if using open or WEP network:
-    status = WiFi.begin(ssid);
+    status = WiFi.begin(ssid, pass);
 
     // wait 10 seconds for connection:
     delay(10000);
@@ -114,6 +115,7 @@ void sendData() {
   // TODO: send rxData to wifi_receiver
   //client.stop();
   //idt this is atomic, might need to disable interrupts.
+
   printPacket();
   Serial.println("data being sent");
   
