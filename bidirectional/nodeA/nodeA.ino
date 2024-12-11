@@ -1,7 +1,4 @@
-#include <SPI.h>
-#include <SD.h>
-#include <Wire.h>
-#include <TMRpcm.h>
+#include "nodeA.h"
 
 /**
 Key points about the system:
@@ -60,6 +57,9 @@ bool file_ready = false;
 char out_file[] = "0.wav";
 char in_file[] = "1.wav";
 
+#ifdef TESTING
+unsigned long numBytesToWrite = 0;
+#endif
 
 void setup() {
   Serial.begin(115200);
@@ -73,11 +73,13 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(BUTTON_PIN), button_pushed, FALLING);
   audio.CSPin = SD_ChipSelectPin;
 
+  #ifndef TESTING
   // set up SD
   if (!SD.begin(SD_ChipSelectPin)) {
     Serial.println("failed!");
     while(true);
   }
+  #endif
 
   // set up audio playback
   audio.speakerPin = SPEAKER_PIN;
@@ -90,68 +92,17 @@ void setup() {
   Wire.onRequest(requestEvent); // register function to be called when a request arrives
 
   Serial.println("OK!");
+
+  #ifdef TESTING
+  runTests();
+  while (true);
+  #endif
 }
 
 void loop() {
 
   if (newRxData) {
-    newRxData = false;
-    if (!receivingFile && rxData.hasData) {
-      if (rxData.wait) {
-        // shouldn't ever reach this case?
-        delay(10);
-        requestData();
-        return;
-      }
-
-      receivingFile = true;
-      if (audio.isPlaying()) {
-        // Upon receiving a new audio file, stop playing the current one
-        audio.stopPlayback();
-        Serial.println("Playback stopped.");
-      }
-
-      // Make a new file
-      if (SD.exists(in_file)) {
-        f_in.close();
-        SD.remove(in_file);
-      }
-      f_in = SD.open(in_file, FILE_WRITE);
-      if (!f_in) {
-        Serial.println("ERROR: file couldn't be opened");
-      }
-      f_in.write(rxData.dataBuf, rxData.numDataBytes);
-
-      Serial.println("Incoming file...");
-      // printPacket(rxData);
-
-      requestData();
-      return;
-
-    } else if (receivingFile && rxData.hasData) {
-      if (rxData.wait) {
-        delay(10);
-        requestData();
-        return;
-      }
-
-      // Append more data to the file
-      // printPacket(rxData);
-      f_in.write(rxData.dataBuf, rxData.numDataBytes);
-
-      requestData();
-      return;
-
-    } else if (receivingFile && !rxData.hasData) {
-      Serial.println("Last packet received. Playing file...");
-      Serial.println();
-      f_in.flush();
-      audio.play(in_file);
-      receivingFile = false;
-
-    }
-    // else: no file in progress, and sender not sending any data, so do nothing
-
+    handleNewData();
   }
 
   if (file_ready) {
@@ -171,6 +122,68 @@ void loop() {
     requestData();
     pollTimer = millis();
   }
+
+}
+
+#ifndef TESTING
+
+void handleNewData() {
+  newRxData = false;
+  if (!receivingFile && rxData.hasData) {
+    if (rxData.wait) {
+      // shouldn't ever reach this case?
+      delay(10);
+      requestData();
+      return;
+    }
+
+    receivingFile = true;
+    if (audio.isPlaying()) {
+      // Upon receiving a new audio file, stop playing the current one
+      audio.stopPlayback();
+      Serial.println("Playback stopped.");
+    }
+
+    // Make a new file
+    if (SD.exists(in_file)) {
+      f_in.close();
+      SD.remove(in_file);
+    }
+    f_in = SD.open(in_file, FILE_WRITE);
+    if (!f_in) {
+      Serial.println("ERROR: file couldn't be opened");
+    }
+    f_in.write(rxData.dataBuf, rxData.numDataBytes);
+
+    Serial.println("Incoming file...");
+    // printPacket(rxData);
+
+    requestData();
+    return;
+
+  } else if (receivingFile && rxData.hasData) {
+    if (rxData.wait) {
+      delay(10);
+      requestData();
+      return;
+    }
+
+    // Append more data to the file
+    // printPacket(rxData);
+    f_in.write(rxData.dataBuf, rxData.numDataBytes);
+
+    requestData();
+    return;
+
+  } else if (receivingFile && !rxData.hasData) {
+    Serial.println("Last packet received. Playing file...");
+    Serial.println();
+    f_in.flush();
+    audio.play(in_file);
+    receivingFile = false;
+
+  }
+  // else: no file in progress, and sender not sending any data, so do nothing
 
 }
 
@@ -262,6 +275,169 @@ void sendFile() {
   while (!rqSent); // wait for last packet to be sent before setting hasData=false and returning to loop()
   txData.hasData = false;
 } 
+
+#else
+/**
+Note: Commenting out file-related code for tests, because I don't expect the TAs
+running the tests to have an Arduino connected to an SD card module.
+
+Also commenting out some of the blocking serial commands.
+**/
+
+void handleNewData() {
+  newRxData = false;
+  if (!receivingFile && rxData.hasData) {
+    if (rxData.wait) {
+      // shouldn't ever reach this case?
+      delay(10);
+      requestData();
+      return;
+    }
+
+    receivingFile = true;
+    if (audio.isPlaying()) {
+      // Upon receiving a new audio file, stop playing the current one
+      audio.stopPlayback();
+      Serial.println("Playback stopped.");
+    }
+
+    // Make a new file
+    // if (SD.exists(in_file)) {
+    //   f_in.close();
+    //   SD.remove(in_file);
+    // }
+    // f_in = SD.open(in_file, FILE_WRITE);
+    // if (!f_in) {
+    //   Serial.println("ERROR: file couldn't be opened");
+    // }
+    // f_in.write(rxData.dataBuf, rxData.numDataBytes);
+
+    Serial.println("Incoming file...");
+    // printPacket(rxData);
+
+    requestData();
+    return;
+
+  } else if (receivingFile && rxData.hasData) {
+    if (rxData.wait) {
+      delay(10);
+      requestData();
+      return;
+    }
+
+    // Append more data to the file
+    // printPacket(rxData);
+    // f_in.write(rxData.dataBuf, rxData.numDataBytes);
+
+    requestData();
+    return;
+
+  } else if (receivingFile && !rxData.hasData) {
+    Serial.println("Last packet received. Playing file...");
+    Serial.println();
+    // f_in.flush();
+    // audio.play(in_file);
+    receivingFile = false;
+
+  }
+  // else: no file in progress, and sender not sending any data, so do nothing
+
+}
+
+//code below executed each time the button is pressed down
+void button_pushed() {
+  if (sendingFile || !rqSent || receivingFile) {
+    // If we're currently sending a file (sendinfFile), 
+    // or that file's last packet hasn't yet been sent (!rqSent),
+    // or we're receiving packets for a file (receivingFile)
+    // don't respond to button presses.
+    return;
+  }
+
+  if (audio.isPlaying()) {
+    audio.stopPlayback();
+    // If audio is currently playing and you press the record button, audio stops playing
+  }
+
+  // This fixes button bouncing issue
+  if (millis() - time_last_pushed < 500) {
+    return;
+  }
+
+  if (!recording_now) {
+    //isn't recording so starts recording & turns LED on
+    recording_now = true;
+    digitalWrite(RECORDING_LED_PIN, HIGH);
+    audio.startRecording(out_file, SAMPLE_RATE, MIC_PIN);
+  }
+  else {
+    //is recording so stops recording & turns LED off
+    recording_now = false;
+    digitalWrite(RECORDING_LED_PIN, LOW);
+    audio.stopRecording(out_file);
+    file_ready = true;
+  }
+  time_last_pushed = millis();
+}
+
+void requestData() {
+  byte stop = true;
+
+  // Note: Commenting this wire request out because it will block when it doesn't receive a response,
+  // which would break our tests.
+
+  // int bytesReturned = Wire.requestFrom(OTHER_ADDRESS, sizeof(rxData), stop); 
+  int bytesReturned = 0;
+
+
+  if (bytesReturned != sizeof(rxData)) {
+    Serial.print("No data received: ");
+    Serial.println(bytesReturned, DEC);
+    return;
+  }
+
+  while (!Wire.available()); // may not be necessary
+  int bytesRead = Wire.readBytes( (byte*) &rxData, sizeof(rxData));
+  if (bytesRead != sizeof(rxData)) {
+    Serial.print("ERROR: Incorrect number of bytes read: ");
+    Serial.println(bytesRead, DEC);
+    return;
+  }
+  newRxData = true;
+}
+
+// Send the contents of f_out in packets over I2C
+void sendFile() {
+  // unsigned long numBytesToWrite = f_out.size();
+  while (sendingFile) {
+    // Repeatedly update txData with the next data
+
+    if (rqSent) {
+      int numBytes = min(numBytesToWrite, MAX_BUF_SIZE);
+      // Serial.print("numBytes = ");
+      // Serial.println(numBytes, DEC);
+
+      // fill in txData
+      txData.numDataBytes = (short) numBytes;
+      txData.hasData = true;
+      txData.wait = false;
+      // if (f_out.read(txData.dataBuf, numBytes) != numBytes) {
+      //   Serial.println("ERROR: failure reading file");
+      //   return;
+      // }
+
+      numBytesToWrite -= (unsigned long) numBytes;
+      rqSent = false;
+      if (numBytesToWrite == 0) {
+        sendingFile = false;
+      }
+    }
+  }
+  // while (!rqSent); // wait for last packet to be sent before setting hasData=false and returning to loop()
+  txData.hasData = false;
+} 
+
+#endif
 
 void requestEvent() {
     Wire.write((byte*) &txData, sizeof(txData));
