@@ -25,6 +25,8 @@ char pass[] = "yasmine2097";
 int status = WL_IDLE_STATUS;
 WiFiServer server(80);
 
+bool useWatchdog = true;
+
 void setup() {
   Serial.begin(9600);
   while (!Serial);
@@ -33,6 +35,11 @@ void setup() {
   Wire.begin(); // join i2c bus
   setupWifi();
   Serial.println("Starting system");
+
+  if (useWatchdog) {
+    initWDT();
+    petWDT();
+  }
 }
 
 void loop() {
@@ -48,6 +55,9 @@ void loop() {
     waitingForRequest();
   }
 
+  if (useWatchdog) {
+    petWDT();
+  }
 }
 
 void waitingForRequest(){
@@ -178,4 +188,32 @@ void printWifiStatus() {
   Serial.print(rssi);
   Serial.println(" dBm");
 }
+
+// Watchdog funcitons (from lab 4):
+unsigned int getNextCPUINT(unsigned int start) {
+   unsigned int tryInt = start + 1;
+      while (tryInt < 32) {
+         if (NVIC_GetEnableIRQ((IRQn_Type) tryInt) == 0) {
+            return tryInt;
+         }
+      tryInt++;
+   }
+}
+unsigned int WDT_INT = getNextCPUINT(1);
+
+void initWDT() {
+  R_WDT->WDTCR = 0b0011001110000011;
+  R_DEBUG->DBGSTOPCR_b.DBGSTOP_WDT = 0;
+  R_WDT->WDTSR = 0; 
+  R_WDT->WDTRCR = 1 << 7;
+  R_ICU->IELSR[WDT_INT] = 0x025;
+  NVIC_SetPriority((IRQn_Type) WDT_INT, 14);
+  NVIC_EnableIRQ((IRQn_Type) WDT_INT);
+}
+
+void petWDT() {
+  R_WDT->WDTRR = 0x00;
+  R_WDT->WDTRR = 0xFF;
+}
+
 

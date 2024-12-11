@@ -40,6 +40,8 @@ volatile bool eventFlag = false;
 // volatile bool errorFlag2 = false;
 volatile bool dataReady = false;
 
+bool useWatchdog = true;
+
 void setup() {
   Serial.begin(115200);
   while (!Serial);
@@ -51,6 +53,11 @@ void setup() {
   // Wire.onReceive(receiveEvent); // register function to be called when a request arrives
   Wire.onRequest(requestEvent); // register function to be called when a request arrives
   Serial.println("OK!");
+
+  if (useWatchdog) {
+    initWDT();
+    petWDT();
+  }
 }
 
 void setupWifi(){
@@ -103,6 +110,9 @@ void loop() {
   //   errorFlag2 = false;
   //   Serial.println("Error: byte read != A");
   // }
+  if (useWatchdog) {
+    petWDT();
+  }
 }
 
 void printPacket() {
@@ -194,5 +204,32 @@ void printWifiStatus() {
   Serial.print("signal strength (RSSI):");
   Serial.print(rssi);
   Serial.println(" dBm");
+}
+
+// Watchdog funcitons (from lab 4):
+unsigned int getNextCPUINT(unsigned int start) {
+   unsigned int tryInt = start + 1;
+      while (tryInt < 32) {
+         if (NVIC_GetEnableIRQ((IRQn_Type) tryInt) == 0) {
+            return tryInt;
+         }
+      tryInt++;
+   }
+}
+unsigned int WDT_INT = getNextCPUINT(1);
+
+void initWDT() {
+  R_WDT->WDTCR = 0b0011001110000011;
+  R_DEBUG->DBGSTOPCR_b.DBGSTOP_WDT = 0;
+  R_WDT->WDTSR = 0; 
+  R_WDT->WDTRCR = 1 << 7;
+  R_ICU->IELSR[WDT_INT] = 0x025;
+  NVIC_SetPriority((IRQn_Type) WDT_INT, 14);
+  NVIC_EnableIRQ((IRQn_Type) WDT_INT);
+}
+
+void petWDT() {
+  R_WDT->WDTRR = 0x00;
+  R_WDT->WDTRR = 0xFF;
 }
 
