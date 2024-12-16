@@ -1,3 +1,4 @@
+// Uncomment this line to run tests
 //#define TESTING
 #include <SPI.h>
 #include <SD.h>

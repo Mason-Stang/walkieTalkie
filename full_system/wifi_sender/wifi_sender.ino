@@ -27,6 +27,10 @@ WiFiServer server(80);
 
 bool useWatchdog = true;
 
+/**
+ * Initializes the node.
+ * FSM: No effect
+ * **/
 void setup() {
   Serial.begin(9600);
   while (!Serial);
@@ -42,11 +46,18 @@ void setup() {
   }
 }
 
+/**
+ * Loops continuously.
+ * When a request for the next data packet is received from wifi_receiver over wifi,
+ * requests data from the recorder node, and forwards the data to wifi_receiver.
+ * Also pets the watchdog.
+ * FSM:
+ * When receivingRequest=true, calls sendData() which transitions from Ready to Send state
+ * When sendData() returns, we return to this function which means we transition back to Ready state
+ * **/
 void loop() {
 
   //constantly listening for the one byte..
-  
-  // TODO: execute the following upon receiving a request over wifi from wifi_receiver
   if (receivingRequest) {
     requestData();
     sendData();
@@ -60,6 +71,12 @@ void loop() {
   }
 }
 
+/**
+ * This function listens for communication from the wifi_receiver node. 
+ * If it receives a request for data, it sets receivingRequest to true.
+ * No inputs or outputs.
+ * FSM: In Ready state, no changes to state.
+ * **/
 void waitingForRequest(){
   WiFiClient client = server.available(); // will only run if there is data available
   if (client.connected()){
@@ -69,16 +86,16 @@ void waitingForRequest(){
     //double check what this is sending
     String ack = String((char *)buf[0]);
     Serial.print(ack);
-    // if (ack == "a"){
-      //unsure if this was the intention of the boolean but once we recieve the one byte we say that we are 
-      //receiving a request from the player.
     receivingRequest = true;
-    
-    // }
-    
   }
 }
 
+/**
+ * This function establishes the connection to the wifi_receiver node.
+ * No inputs or outputs.
+ * Executes once on initialization.
+ * FSM: No effect
+ * **/
 void setupWifi(){
   if (WiFi.status() == WL_NO_MODULE) {
     Serial.println("Communication with WiFi module failed!");
@@ -107,6 +124,12 @@ void setupWifi(){
   
 }
 
+/**
+ * Helper function for printing metadata about the current contents of rxData, 
+ * the current data packet.
+ * No inputs or outputs.
+ * FSM: No effect
+ * **/
 void printPacket() {
     Serial.print("Packet with hasData = ");
     Serial.print(rxData.hasData, DEC);
@@ -120,22 +143,24 @@ void printPacket() {
     Serial.println();
 }
 
-
+/**
+ * Prints the current packet to be sent, and sends the contents of rxData to the wifi_receiver node.
+ * No inputs or outputs.
+ * FSM: Currently in Send state, no change to state.
+ * **/
 void sendData() {
-  // TODO: send rxData to wifi_receiver
-  //client.stop();
-  //idt this is atomic, might need to disable interrupts.
-
   printPacket();
   Serial.println("data being sent");
-  
   server.write((byte *)&rxData, sizeof(rxData));
-  
 }
 
+/**
+ * Sends a request for the next data packet to the Recorder node, and reads the response.
+ * Sets global variable rxData to the value of the response.
+ * No inputs or outputs.
+ * FSM: In Ready state, no change to state.
+ * **/
 void requestData() {
-  //QUESTION: what is the purpose of sending a packet with no data to the receiver/player? 
-
   int bytesReturned = Wire.requestFrom(otherAddress, sizeof(rxData)); //Note: Blocks for around a second when there's no response
   if (bytesReturned != sizeof(rxData)) {
     rxData.hasData = false;
@@ -151,25 +176,15 @@ void requestData() {
     Serial.print("ERROR: Incorrect number of bytes read: ");
     Serial.println(bytesRead, DEC);
     return;
-  } 
-  //added this here to say that we have fulffilled the previous request and are ready for the next one
-  
-}
-
-void printPacket(I2cRxStruct packet) {
-    Serial.print("Packet with hasData = ");
-    Serial.print(rxData.hasData, DEC);
-    Serial.print(" and ");
-    Serial.print(rxData.numDataBytes, DEC);
-    Serial.println(" data bytes received (bytes in HEX): ");
-    for (int i=0; i<rxData.numDataBytes; i++) {
-      Serial.print(rxData.dataBuf[i], HEX);
-      Serial.print(" ");
-    }
-    Serial.println();
+  }  
 }
 
 
+/**
+ * Helper function to print the status of the wifi connection.
+ * No inputs or outputs.
+ * FSM: No effect.
+ * **/
 /* -------------------------------------------------------------------------- */
 void printWifiStatus() {
 /* -------------------------------------------------------------------------- */  
@@ -189,7 +204,11 @@ void printWifiStatus() {
   Serial.println(" dBm");
 }
 
-// Watchdog funcitons (from lab 4):
+/**
+ * Watchdog function adapted from Lab 4
+ * Input: Starting CPU int
+ * Output: The next CPU int
+ * **/
 unsigned int getNextCPUINT(unsigned int start) {
    unsigned int tryInt = start + 1;
       while (tryInt < 32) {
@@ -201,6 +220,12 @@ unsigned int getNextCPUINT(unsigned int start) {
 }
 unsigned int WDT_INT = getNextCPUINT(1);
 
+/**
+ * Helper function to initialize the watchdog.
+ * No inputs or outputs.
+ * Adapted from Lab 4
+ * FSM: no effect.
+ * **/
 void initWDT() {
   R_WDT->WDTCR = 0b0011001110000011;
   R_DEBUG->DBGSTOPCR_b.DBGSTOP_WDT = 0;
@@ -211,6 +236,12 @@ void initWDT() {
   NVIC_EnableIRQ((IRQn_Type) WDT_INT);
 }
 
+/**
+ * Calling this function pets the watchdog by resetting the timer.
+ * No inputs or outputs.
+ * Adapted from Lab 4
+ * FSM: no effect.
+ * **/
 void petWDT() {
   R_WDT->WDTRR = 0x00;
   R_WDT->WDTRR = 0xFF;

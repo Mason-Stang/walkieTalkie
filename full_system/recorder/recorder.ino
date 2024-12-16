@@ -4,11 +4,12 @@
 #include <TMRpcm.h>
 
 /**
-Key points about the system:
-- Using a design where the receiver polls the sender.
-  - Doing this over I2C using Wire.requestFrom()
-  - May have to make our own protocol over wifi to implement this
-- Uni-directional Architecture:
+Key points about the Wireless Unidirectional system:
+- Using a design where the player polls the recorder for data.
+- Communication using:
+  - I2C using Wire.requestFrom()
+  - Wifi using client/server architecture
+- Uni-directional flow of data packets:
   recorder --(i2c)--> wifi_sender --(wifi)--> wifi_receiver --(i2c)--> player
 **/
 
@@ -22,7 +23,7 @@ File f;
 
 const int MAX_BUF_SIZE = 28;
 
-        // data to be sent
+// data to be sent
 struct I2cTxStruct {
     short numDataBytes;       // 2 bytes
     bool hasData;      // 1
@@ -31,10 +32,9 @@ struct I2cTxStruct {
                             //------
                             // 32
 };
-
 volatile I2cTxStruct txData;
 
-        // I2C control stuff
+// I2C control stuff
 const byte thisAddress = 8; // these need to be swapped for the other Arduino
 const byte otherAddress = 9;
 
@@ -52,8 +52,70 @@ const int sample_rate = 8000; //16000; // Affects audio quality and file size. S
 volatile unsigned long time_last_pushed = 0;
 bool file_ready = false;
 
+/**
+ * Initializes the node.
+ * FSM: No effect
+ * **/
+void setup() {
+  Serial.begin(115200);
+  while (!Serial);
 
-//code below executed each time the button is pressed down
+  Serial.print("Initializing SD card...");
+  if (!SD.begin(53)) {
+    Serial.println("failed!");
+    while(true);  // stay here.
+  }
+
+  //Sets up the pins
+  pinMode(mic_pin, INPUT);
+  pinMode(recording_led_pin, OUTPUT);
+  pinMode(button_pin, INPUT_PULLUP);
+
+  //Sets up the audio recording functionality
+  attachInterrupt(digitalPinToInterrupt(button_pin), button_pushed, FALLING);
+  SD.begin(SD_ChipSelectPin);
+  audio.CSPin = SD_ChipSelectPin;
+
+  root = SD.open("/");      // open SD card main root
+
+        // set up I2C
+  Wire.begin(thisAddress); // join i2c bus
+  txData.hasData = false; // false when not currently sending a file
+  Wire.onRequest(requestEvent); // register function to be called when a request arrives
+  Serial.println("OK!");
+}
+
+/**
+ * Loops continuously. When a file has just finished recording and is ready to be sent,
+ * calls sendFile() to start sending packets to the next node.
+ * **/
+void loop() {
+
+  if (file_ready) {
+    file_ready = false;
+    sendingFile = true;
+    root.rewindDirectory();
+    f = root.openNextFile();
+    f.seek(0);
+    printFile();
+    Serial.println("Sending file...");
+
+    sendFile();
+
+    Serial.println("All bytes sent!");
+  }
+
+}
+
+/**
+This code is executed as an ISR each time the button is pressed down. 
+Either starts a recording, or stops a recording.
+No inputs or outputs.
+FSM:
+If recording_now=true when this function is invoked, transitions from Record to Transmit. Stops recording, begins transmitting.
+If recording_now=false, transitions from Ready to Record. Begins recording. 
+If in Send state, does nothing.
+**/
 void button_pushed() {
   if (sendingFile || !rqSent) {
     // If we're currently sending a file (sendinfFile), 
@@ -86,54 +148,13 @@ void button_pushed() {
   time_last_pushed = millis();
 }
 
-void setup() {
-  Serial.begin(115200);
-  while (!Serial);
-
-  Serial.print("Initializing SD card...");
-  if (!SD.begin(53)) {
-    Serial.println("failed!");
-    while(true);  // stay here.
-  }
-
-  //Sets up the pins
-  pinMode(mic_pin, INPUT);
-  pinMode(recording_led_pin, OUTPUT);
-  pinMode(button_pin, INPUT_PULLUP);
-
-  //Sets up the audio recording functionality
-  attachInterrupt(digitalPinToInterrupt(button_pin), button_pushed, FALLING);
-  SD.begin(SD_ChipSelectPin);
-  audio.CSPin = SD_ChipSelectPin;
-
-  root = SD.open("/");      // open SD card main root
-
-        // set up I2C
-  Wire.begin(thisAddress); // join i2c bus
-  txData.hasData = false; // false when not currently sending a file
-  Wire.onRequest(requestEvent); // register function to be called when a request arrives
-  Serial.println("OK!");
-}
-
-void loop() {
-
-  if (file_ready) {
-    file_ready = false;
-    sendingFile = true;
-    root.rewindDirectory();
-    f = root.openNextFile();
-    f.seek(0);
-    printFile();
-    Serial.println("Sending file...");
-
-    sendFile();
-
-    Serial.println("All bytes sent!");
-  }
-
-}
-
-// Send the contents of file f in batches over I2C
+/**
+ * Sends the content of file f in batches over I2C.
+ * No inputs or outputs.
+ * FSM:
+ * Invoking this function transitions the state from Record to Send. 
+ * When the function exits, state transitions from Send to Ready.
+ **/
 void sendFile() {
   unsigned long numBytesToWrite = f.size();
   while (sendingFile) {
@@ -141,8 +162,6 @@ void sendFile() {
 
     if (rqSent) {
       int numBytes = min(numBytesToWrite, MAX_BUF_SIZE);
-      // Serial.print("numBytes = ");
-      // Serial.println(numBytes, DEC);
 
       // fill in txData
       txData.numDataBytes = (short) numBytes;
@@ -165,14 +184,22 @@ void sendFile() {
   txData.wait = false; //added this
 } 
 
-
+/**
+ * This code is executed as an ISR each time the wifi_sender node requests data.
+ * Sends the current contents of txData to the next node. 
+ * No inputs or outputs.
+ * FSM: State is in Send state and does not change.
+ * **/
 void requestEvent() {
     Wire.write((byte*) &txData, sizeof(txData));
     rqSent = true;
     txData.wait = true;
 }
 
-
+/**
+ * Helper function for printing metadata about the recorded file.
+ * FSM: No effect
+ * **/
 void printFile() {
   if (! f) {
     Serial.println("ERROR printing file");

@@ -1,4 +1,10 @@
 
+/**
+ * Runs all the unit tests.
+ * Prints "All tests passed" if all tests passed, otherwise prints which test failed.
+ * No inputs or outputs.
+ * No changes to state.
+ * **/
 void runTests() {
   Serial.println("Running tests...");
 
@@ -22,6 +28,11 @@ void runTests() {
   Serial.println("All tests passed");
 }
 
+/**
+ * Unit tests for handleNewData().
+ * Tests each execution branch of this function individually.
+ * No inputs. Returns true if unit tests pass, false otherwise.
+ * **/
 bool testHandleNewData() {
   // First branch:
   newRxData = true;
@@ -70,6 +81,11 @@ bool testHandleNewData() {
   return true;
 }
 
+/**
+ * Unit tests for button_pushed().
+ * Tests each execution branch of this function individually.
+ * No inputs. Returns true if unit tests pass, false otherwise.
+ * **/
 bool testButtonPushed() {
   // First branch:
   recording_now = false;
@@ -114,6 +130,11 @@ bool testButtonPushed() {
   return true;
 }
 
+/**
+ * Unit tests for requestData().
+ * Tests each execution branch of this function individually.
+ * No inputs. Returns true if unit tests pass, false otherwise.
+ * **/
 bool testRequestData() {
   // Test that first branch is hit
   newRxData = false;
@@ -126,6 +147,11 @@ bool testRequestData() {
   return true;
 }
 
+/**
+ * Unit tests for sendFile().
+ * Tests each execution branch of this function individually.
+ * No inputs. Returns true if unit tests pass, false otherwise.
+ * **/
 bool testSendFile() {
   // Returns from function in trivial case
   sendingFile = false;

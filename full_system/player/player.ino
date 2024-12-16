@@ -4,12 +4,12 @@
 #include <TMRpcm.h>
 
 /**
-  This nodes reads in a .wav file and plays it.
+  This nodes reads in a .wav file from wifi_receiver and plays it.
 **/
 
 const int MAX_BUF_SIZE = 28;
 
-        // data to be sent
+// data to be sent
 struct I2cRxStruct {
     short numDataBytes;       // 2 bytes
     bool hasData;      // 1
@@ -18,7 +18,6 @@ struct I2cRxStruct {
                             //------
                             // 32
 };
-
 I2cRxStruct rxData;
 
 const byte otherAddress = 8;
@@ -31,12 +30,15 @@ TMRpcm audio;
 File f;
 char file_name[20] = "";
 
+/**
+ * Initializes the node.
+ * FSM: No effect
+ * **/
 void setup() {
   Serial.begin(115200);
   while (!Serial);
 
   // set up I2C
-  //Wire.begin(thisAddress); // join i2c bus
   Wire.begin(); // join i2c bus
 
   Serial.print("Initializing SD card...");
@@ -48,25 +50,34 @@ void setup() {
 
   audio.speakerPin = 11;  // Has to be pin 11 for mega! 9 on Uno
 
-  //root = SD.open("/");      // open SD card main root
   audio.setVolume(6);    //   0 to 7. Set volume level
   audio.quality(1);      //  Set 1 for 2x oversampling Set 0 for normal
-
-  //Wire.onReceive(receiveEvent);
 
   Serial.println("OK!");
 }
 
+/**
+ * Loops continuously.
+ * Calls requestData(), which requests the next data packet from the wifi_receiver node.
+ * When the wifi_receiver node responds with a packet, newRxData=true and the code enters the if statement.
+ * FSM:
+ * - If receivingFile=false and audio.isPlaying()=false, then currently in the Ready state. 
+ *  - If rxData.hasData=true, then we are receiving
+ *    the first packet of a file, so transition to the Receive state.
+ * - If receivingFile=false and audio.isPlaying()=true, then currently in the Play state, and playing the file. 
+ *  - If rxData.hasData=true, then we are receiving
+ *    the first packet of a file, so transition to the Ready state, then the Receiving state. Stop playing and start receiving packets.
+ * - If receivingFile=true, then currently in the Receive state. 
+ *  - If rxData.hasData=true, then we are receiving
+ *    the next packet of a file, so stay in the Receive state. 
+ *  - If rxData.hasData=false, then we've finished receiving
+ *    packets for a file, so transition from Receive state to Play state. Begin playing the file.
+ * **/
 void loop() {
-
   if (newRxData) {
-    //Serial.println("newRxData");
-    //printPacket();
 
     newRxData = false;
-
     if (rxData.wait) {
-      //Serial.println("Waiting for data");
       delay(100);
       requestData();
       return;
@@ -87,30 +98,22 @@ void loop() {
       if (!f) {
         Serial.println("ERROR: file couldn't be opened");
       }
-      //file_open = true;
       f.write(rxData.dataBuf, rxData.numDataBytes);
 
       Serial.println("Incoming file...");
-      // printPacket(rxData);
       receivingFile = true;
 
       requestData();
       return;
 
     } else if (receivingFile && rxData.hasData) {
-      //Serial.println("Data packets being received");
-
-      // Append more data to the file
-      // printPacket(rxData);
       f.write(rxData.dataBuf, rxData.numDataBytes);
 
       requestData();
       return;
 
     } else if (receivingFile && !rxData.hasData) {
-      // TODO: close the current file
       Serial.println("Last packet received. Playing file...");
-      //while (true);
       Serial.println();
       receivingFile = false;
       f.flush();
@@ -128,12 +131,16 @@ void loop() {
 
 }
 
+/**
+ * Sends a request for the next data packet to the wifi_receiver node, and reads the response.
+ * Sets global variable rxData to the value of the response.
+ * No inputs or outputs.
+ * FSM: 
+ * If receivingFile=true, currently in Receive state. No change to state.
+ * If receivingFile=false, currently in Ready state. No change to state.
+ * **/
 void requestData() {
-  //Serial.println("Data requested");
-  int bytesReturned = Wire.requestFrom(otherAddress, sizeof(rxData));
-  //Note: Pauses for around a second when there's no response.
-  // But sometimes it blocks??
-  
+  int bytesReturned = Wire.requestFrom(otherAddress, sizeof(rxData));  
 
   if (bytesReturned != sizeof(rxData)) {
     Serial.print("No data received: ");
@@ -141,9 +148,7 @@ void requestData() {
     return;
   }
 
-  //Serial.println("Before check");
   while (!Wire.available()); // may not be necessary
-  //Serial.println("After check");
 
   int bytesRead = Wire.readBytes( (byte*) &rxData, sizeof(rxData));
   if (bytesRead != sizeof(rxData)) {
@@ -152,35 +157,14 @@ void requestData() {
     return;
   }
   newRxData = true;
-  //Serial.println("Bytes returned");
-
-  // ------------------
-
-  // char x = 'A';
-  // newRxData = false; // unnecessary, should already be false
-  // Wire.beginTransmission(otherAddress);
-  // Wire.write(x);
-  // Wire.endTransmission();    // this is what actually sends the data
-
-  // unsigned long currTime = millis();
-  // while (!newRxData) {
-  //   // block for up to 1 second waiting for the response
-  //   // after that, expects that it won't come (undefined behavior if it does)
-  //   if (millis() - currTime > 1000) {
-  //     // assume the response is never coming
-  //     Serial.println("No response from wifi_receiver");
-  //     return;
-  //   }
-  // }
-  // Serial.println("Data received");
-
 }
 
-// void receiveEvent() {
-//   Wire.readBytes( (byte*) &rxData, sizeof(rxData));
-//   newRxData = true;
-// }
-
+/**
+ * Helper function for printing metadata about the current contents of rxData, 
+ * the current data packet.
+ * No inputs or outputs.
+ * FSM: No effect
+ * **/
 void printPacket() {
   Serial.print("Packet with hasData = ");
   Serial.print(rxData.hasData, DEC);

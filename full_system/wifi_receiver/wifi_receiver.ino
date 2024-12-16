@@ -5,9 +5,6 @@
   This node forwards packets from wifi_sender to player.
 **/
 
-// when waiting on response, set hasData=false, wait=true
-// Keep a variable for when packet is sent. requestData() sets it to true, requestEvent sets it to false if it was true
-
 const int MAX_BUF_SIZE = 28;
 char ssid[] = "yas" ;
 char pass[] = "yasmine2097";
@@ -18,8 +15,7 @@ unsigned long lastConnectionTime = 0;            // last time you connected to t
 const unsigned long postingInterval = 10L * 1000L; // delay between updates, in milliseconds
 
 
-
-        // data to be received/sent
+// data to be received/sent
 struct I2cRxStruct {
     short numDataBytes;       // 2 bytes
     bool hasData;      // 1
@@ -31,26 +27,27 @@ struct I2cRxStruct {
 
 volatile I2cRxStruct rxData;
 
-        // I2C control stuff
-const byte thisAddress = 8; // these need to be swapped for the other Arduino
+// I2C control stuff
+const byte thisAddress = 8; // these are swapped for the other Arduino
 const byte otherAddress = 9;
 
 volatile bool eventFlag = false;
-// volatile bool errorFlag1 = false;
-// volatile bool errorFlag2 = false;
 volatile bool dataReady = false;
 
 bool useWatchdog = true;
 
+/**
+ * Initializes the node.
+ * FSM: No effect
+ * **/
 void setup() {
   Serial.begin(115200);
   while (!Serial);
   Serial.print("Starting...");
-  setupWifi();    //commented out for testing
+  setupWifi();
 
   // set up I2C
   Wire.begin(thisAddress); // join i2c bus
-  // Wire.onReceive(receiveEvent); // register function to be called when a request arrives
   Wire.onRequest(requestEvent); // register function to be called when a request arrives
   Serial.println("OK!");
 
@@ -60,6 +57,12 @@ void setup() {
   }
 }
 
+/**
+ * This function establishes the connection to the wifi_receiver node.
+ * No inputs or outputs.
+ * Executes once on initialization.
+ * FSM: No effect
+ * **/
 void setupWifi(){
    if (WiFi.status() == WL_NO_MODULE) {
     Serial.println("Communication with WiFi module failed!");
@@ -91,30 +94,33 @@ void setupWifi(){
     Serial.println(connected);
   }
 }
+
+/**
+ * Loops continuously.
+ * If eventFlag=true and dataReady=false, calls requestData() which sends a request to 
+ * the wifi_sender node for the next data packet.
+ * Also pets the watchdog.
+ * FSM:
+ * Current state is Ready. This function doesn't directly switch states, but it calls
+ * requestData which populates rxData, setting dataReady=true. When this is the case, the
+ * next data packet is sent to the Player node when requestEvent is invoked.
+ * **/
 void loop() {
   if (eventFlag && !dataReady) {
     eventFlag = false;
     requestData();
 
-    // delay(100);
-    // Wire.beginTransmission(otherAddress);
-    // Wire.write((byte*) &rxData, sizeof(rxData));
-    // Wire.endTransmission();    // this is what actually sends the data
-    // Serial.println("Bytes written");
-  }
-  // if (errorFlag1) {
-  //   errorFlag1 = false;
-  //   Serial.println("Error: numBytesRead != 1");
-  // }
-  // if (errorFlag2) {
-  //   errorFlag2 = false;
-  //   Serial.println("Error: byte read != A");
-  // }
   if (useWatchdog) {
     petWDT();
   }
 }
 
+/**
+ * Helper function for printing metadata about the current contents of rxData, 
+ * the current data packet.
+ * No inputs or outputs.
+ * FSM: No effect
+ * **/
 void printPacket() {
   Serial.print("Packet with hasData = ");
   Serial.print(rxData.hasData, DEC);
@@ -130,12 +136,15 @@ void printPacket() {
   Serial.println();
 }
 
+/**
+ * sends a request to the wifi_sender node asking for the next data packet.
+ * Blocks for 1 second waiting for a response. Reads the response if it arrives, 
+ * prints the packet, and sets dataReady=true;
+ * No inputs or outputs.
+ * FSM:
+ * In Ready state, doesn't change the state.
+ * **/
 void requestData() {
-  // TODO: send a request to wifi_sender, wait for a response.
-  // Populate response data into rxData
-  // If no response, set rxData.wait=true and rxData.hasData=false
-
-  //sends a request to wifi_sender
   byte ask[1] = {'a'};
   
   client.write(ask, 1);
@@ -143,23 +152,27 @@ void requestData() {
   //waiting for the response
   unsigned long currTime = millis();
   while(!client.available()){
-    //if no response after 0.5 seconds, set rxData.wait=true and rxData.hasData=false, and return;
+    //if no response after 1 second
     if (millis() - currTime > 1000) {
       return;
     }
   }
-  // we know there is a client and data to read after we are done waiting. insert watchdog somewhere here?
-  //Serial.println("received data");
   
   byte buf[sizeof(rxData)];
-  client.read(buf, sizeof(rxData)); //currently on reading the data buffer.
-  //noInterrupts();
+  client.read(buf, sizeof(rxData)); 
   memcpy((byte *) &rxData, buf, sizeof(rxData));
   dataReady = true;
-  //interrupts();
   printPacket();
 }
 
+/**
+ * This code is executed as an ISR each time the player node requests data.
+ * Sends the current contents of rxData to the next node. 
+ * No inputs or outputs.
+ * FSM:
+ * When this function is invoked, state changes from Ready to Send.
+ * When this function exits, state changes back from Send to Ready.
+ * **/
 void requestEvent() {
   eventFlag = true;
   if (dataReady) {
@@ -171,22 +184,11 @@ void requestEvent() {
   Wire.write((byte*) &rxData, sizeof(rxData));
 }
 
-
-// void receiveEvent(int numBytesReceived) {
-//   if (numBytesReceived != 1) {
-//     errorFlag1 = true;
-//     return;
-//   }
-//   char c = Wire.read();
-//   if (c != 'A') {
-//     errorFlag2 = true;
-//     return;
-//   }
-//   eventFlag = true;
-// }
-
-
-
+/**
+ * Helper function to print the status of the wifi connection.
+ * No inputs or outputs.
+ * FSM: No effect.
+ * **/
 /* -------------------------------------------------------------------------- */
 void printWifiStatus() {
 /* -------------------------------------------------------------------------- */  
@@ -206,7 +208,11 @@ void printWifiStatus() {
   Serial.println(" dBm");
 }
 
-// Watchdog funcitons (from lab 4):
+/**
+ * Watchdog function adapted from Lab 4
+ * Input: Starting CPU int
+ * Output: The next CPU int
+ * **/
 unsigned int getNextCPUINT(unsigned int start) {
    unsigned int tryInt = start + 1;
       while (tryInt < 32) {
@@ -218,6 +224,12 @@ unsigned int getNextCPUINT(unsigned int start) {
 }
 unsigned int WDT_INT = getNextCPUINT(1);
 
+/**
+ * Helper function to initialize the watchdog.
+ * No inputs or outputs.
+ * Adapted from Lab 4
+ * FSM: no effect.
+ * **/
 void initWDT() {
   R_WDT->WDTCR = 0b0011001110000011;
   R_DEBUG->DBGSTOPCR_b.DBGSTOP_WDT = 0;
@@ -228,6 +240,12 @@ void initWDT() {
   NVIC_EnableIRQ((IRQn_Type) WDT_INT);
 }
 
+/**
+ * Calling this function pets the watchdog by resetting the timer.
+ * No inputs or outputs.
+ * Adapted from Lab 4
+ * FSM: no effect.
+ * **/
 void petWDT() {
   R_WDT->WDTRR = 0x00;
   R_WDT->WDTRR = 0xFF;

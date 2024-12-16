@@ -60,7 +60,10 @@ bool file_ready = false;
 char out_file[] = "0.wav";
 char in_file[] = "1.wav";
 
-
+/**
+ * Initializes the node.
+ * FSM: No effect
+ * **/
 void setup() {
   Serial.begin(115200);
   while (!Serial);
@@ -92,66 +95,19 @@ void setup() {
   Serial.println("OK!");
 }
 
+/**
+ * Loops continuously.
+ * Requests data packets from the other node by calling requestData().
+ * When a new data packet is received, calls handleNewData().
+ * When a recording is finished, calls sendFile() to send the file to the other node.
+ * FSM:
+ * While this is looping, the state could be any state except for Transmit (Record, Ready, Receive, Play).
+ * The Transmit state is entirely self-contained in sendFile(), however. 
+ * **/
 void loop() {
 
   if (newRxData) {
-    newRxData = false;
-    if (!receivingFile && rxData.hasData) {
-      if (rxData.wait) {
-        // shouldn't ever reach this case?
-        delay(10);
-        requestData();
-        return;
-      }
-
-      receivingFile = true;
-      if (audio.isPlaying()) {
-        // Upon receiving a new audio file, stop playing the current one
-        audio.stopPlayback();
-        Serial.println("Playback stopped.");
-      }
-
-      // Make a new file
-      if (SD.exists(in_file)) {
-        f_in.close();
-        SD.remove(in_file);
-      }
-      f_in = SD.open(in_file, FILE_WRITE);
-      if (!f_in) {
-        Serial.println("ERROR: file couldn't be opened");
-      }
-      f_in.write(rxData.dataBuf, rxData.numDataBytes);
-
-      Serial.println("Incoming file...");
-      // printPacket(rxData);
-
-      requestData();
-      return;
-
-    } else if (receivingFile && rxData.hasData) {
-      if (rxData.wait) {
-        delay(10);
-        requestData();
-        return;
-      }
-
-      // Append more data to the file
-      // printPacket(rxData);
-      f_in.write(rxData.dataBuf, rxData.numDataBytes);
-
-      requestData();
-      return;
-
-    } else if (receivingFile && !rxData.hasData) {
-      Serial.println("Last packet received. Playing file...");
-      Serial.println();
-      f_in.flush();
-      audio.play(in_file);
-      receivingFile = false;
-
-    }
-    // else: no file in progress, and sender not sending any data, so do nothing
-
+    handleNewData();
   }
 
   if (file_ready) {
@@ -159,7 +115,6 @@ void loop() {
     sendingFile = true;
     f_out = SD.open(out_file, FILE_READ);
     f_out.seek(0);
-    //printFile();
     Serial.println("Sending file...");
     sendFile();
     f_out.close();
@@ -174,7 +129,91 @@ void loop() {
 
 }
 
-//code below executed each time the button is pressed down
+/**
+ * This function processes a new incoming data packet. 
+ * Calls requestData() to request the next packet after processing.
+ * No inputs or outputs
+ * FSM:
+ * - If receivingFile=false and audio.isPlaying()=false, then currently in the Ready state. 
+ *  - If rxData.hasData=true, then we are receiving
+ *    the first packet of a file, so transition to the Receive state.
+ * - If receivingFile=false and audio.isPlaying()=true, then currently in the Play state, and playing the file. 
+ *  - If rxData.hasData=true, then we are receiving
+ *    the first packet of a file, so transition to the Receiving state. Stop playing and start receiving packets.
+ * - If receivingFile=true, then currently in the Receive state. 
+ *  - If rxData.hasData=true, then we are receiving
+ *    the next packet of a file, so stay in the Receive state. 
+ *  - If rxData.hasData=false, then we've finished receiving
+ *    packets for a file, so transition from Receive state to Play state. Begin playing the file.
+ * **/
+void handleNewData() {
+  newRxData = false;
+  if (!receivingFile && rxData.hasData) {
+    if (rxData.wait) {
+      // shouldn't ever reach this case?
+      delay(10);
+      requestData();
+      return;
+    }
+
+    receivingFile = true;
+    if (audio.isPlaying()) {
+      // Upon receiving a new audio file, stop playing the current one
+      audio.stopPlayback();
+      Serial.println("Playback stopped.");
+    }
+
+    // Make a new file
+    if (SD.exists(in_file)) {
+      f_in.close();
+      SD.remove(in_file);
+    }
+    f_in = SD.open(in_file, FILE_WRITE);
+    if (!f_in) {
+      Serial.println("ERROR: file couldn't be opened");
+    }
+    f_in.write(rxData.dataBuf, rxData.numDataBytes);
+    Serial.println("Incoming file...");
+
+    requestData();
+    return;
+
+  } else if (receivingFile && rxData.hasData) {
+    if (rxData.wait) {
+      delay(10);
+      requestData();
+      return;
+    }
+
+    // Append more data to the file
+    f_in.write(rxData.dataBuf, rxData.numDataBytes);
+
+    requestData();
+    return;
+
+  } else if (receivingFile && !rxData.hasData) {
+    Serial.println("Last packet received. Playing file...");
+    Serial.println();
+    f_in.flush();
+    audio.play(in_file);
+    receivingFile = false;
+
+  }
+  // else: no file in progress, and sender not sending any data, so do nothing
+
+}
+
+/**
+This code is executed as an ISR each time the button is pressed down. 
+Either starts a recording, or stops a recording.
+No inputs or outputs.
+FSM:
+- If recording_now=true when this function is invoked, transitions from Record to Transmit by setting file_ready=true. 
+  Stops recording, begins transmitting.
+- If recording_now=false, transitions from Ready (or Play, if playing) to Record. Begins recording. 
+- If in Transmit state, does nothing.
+- If in Receive state, does nothing.
+**/
 void button_pushed() {
   if (sendingFile || !rqSent || receivingFile) {
     // If we're currently sending a file (sendinfFile), 
@@ -210,11 +249,17 @@ void button_pushed() {
   time_last_pushed = millis();
 }
 
+/**
+ * Sends a request for the next data packet to the other node, and reads the response.
+ * Sets global variable rxData to the value of the response.
+ * No inputs or outputs.
+ * FSM: 
+ * If receivingFile=true, currently in Receive state. No change to state.
+ * If receivingFile=false, currently in either Record, Ready, or Play state. No change to state.
+ * **/
 void requestData() {
   byte stop = true;
   int bytesReturned = Wire.requestFrom(OTHER_ADDRESS, sizeof(rxData), stop); 
-  //Note: Pauses for around a second when there's no response.
-  // But sometimes it blocks??
 
   if (bytesReturned != sizeof(rxData)) {
     Serial.print("No data received: ");
@@ -222,7 +267,7 @@ void requestData() {
     return;
   }
 
-  while (!Wire.available()); // may not be necessary
+  while (!Wire.available());
   int bytesRead = Wire.readBytes( (byte*) &rxData, sizeof(rxData));
   if (bytesRead != sizeof(rxData)) {
     Serial.print("ERROR: Incorrect number of bytes read: ");
@@ -232,7 +277,14 @@ void requestData() {
   newRxData = true;
 }
 
-// Send the contents of f_out in packets over I2C
+/**
+ * Sends the content of file f_out in packets over I2C.
+ * No inputs or outputs.
+ * FSM:
+ * Invoking this function transitions the state from Record to Transmit. 
+ * When the function exits, state transitions from Transmit to Ready.
+ * Therefore the Transmit state is fully encapsulated by this function.
+ **/
 void sendFile() {
   unsigned long numBytesToWrite = f_out.size();
   while (sendingFile) {
@@ -240,8 +292,6 @@ void sendFile() {
 
     if (rqSent) {
       int numBytes = min(numBytesToWrite, MAX_BUF_SIZE);
-      // Serial.print("numBytes = ");
-      // Serial.println(numBytes, DEC);
 
       // fill in txData
       txData.numDataBytes = (short) numBytes;
@@ -263,21 +313,16 @@ void sendFile() {
   txData.hasData = false;
 } 
 
+/**
+ * This code is executed as an ISR each time the other node requests data.
+ * Sends the current contents of txData to the next node. 
+ * No inputs or outputs.
+ * FSM:
+ * The other node may request data from this node while this node is in any state.
+ * This function simply responds with the current contents of txData. It does not change the state.
+ * **/
 void requestEvent() {
     Wire.write((byte*) &txData, sizeof(txData));
     rqSent = true;
     txData.wait = true;
 }
-
-// void printPacket(I2cStruct packet) {
-//     Serial.print("Packet with hasData = ");
-//     Serial.print(rxData.hasData, DEC);
-//     Serial.print(" and ");
-//     Serial.print(rxData.numDataBytes, DEC);
-//     Serial.println(" data bytes received (bytes in HEX): ");
-//     for (int i=0; i<rxData.numDataBytes; i++) {
-//       Serial.print(rxData.dataBuf[i], HEX);
-//       Serial.print(" ");
-//     }
-//     Serial.println();
-// }
